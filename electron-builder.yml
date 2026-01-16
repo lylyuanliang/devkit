@@ -1,0 +1,26 @@
+appId: com.devkit.app
+productName: DevKit
+copyright: Copyright © 2026
+directories:
+  output: release
+  buildResources: resources
+files:
+  - dist/**/*
+  - package.json
+  - '!**/*.map'
+  - '!**/*.md'
+win:
+  target:
+    - target: dir  # 使用 dir 目标，不打包成单文件，避免签名问题
+      arch:
+        - x64
+mac:
+  target:
+    - dmg
+  category: public.app-category.developer-tools
+linux:
+  target:
+    - AppImage
+  category: Development
+# 完全禁用代码签名
+forceCodeSigning: false

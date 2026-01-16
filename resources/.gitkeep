@@ -1,0 +1,6 @@
+# 资源文件目录
+
+将应用图标等资源文件放在此目录：
+- icon.ico (Windows)
+- icon.icns (macOS)
+- icon.png (Linux)

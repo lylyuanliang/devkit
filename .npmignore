@@ -1,0 +1,42 @@
+# 打包时忽略的文件和目录
+
+# 源代码
+src/
+
+# 文档
+docs/
+*.md
+!package.json
+
+# 配置文件
+.vscode/
+.husky/
+.editorconfig
+.eslintrc.cjs
+.eslintignore
+.prettierrc
+.prettierignore
+.gitignore
+tsconfig*.json
+vite.config.ts
+
+# 开发文件
+TODO.md
+GETTING_STARTED.md
+HOW_TO_CONTINUE.md
+PROJECT_INIT_SUMMARY.md
+PROGRESS_UPDATE.md
+WORK_SUMMARY*.md
+
+# 测试文件
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# 其他
+.git/
+node_modules/
+release/
+coverage/

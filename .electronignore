@@ -1,0 +1,45 @@
+# electron-packager 打包时忽略的文件
+
+# 源代码（只排除项目根目录的 src，不影响 node_modules）
+/src
+
+# 文档
+/docs
+*.md
+!package.json
+!node_modules
+
+# 配置文件
+/.vscode
+/.husky
+/.editorconfig
+/.eslintrc.cjs
+/.eslintignore
+/.prettierrc
+/.prettierignore
+/.gitignore
+/tsconfig*.json
+/vite.config.ts
+/electron-builder.yml
+/.yarnrc
+/.npmignore
+/.electronignore
+
+# 开发文件
+/TODO.md
+/GETTING_STARTED.md
+/HOW_TO_CONTINUE.md
+/PROJECT_INIT_SUMMARY.md
+/PROGRESS_UPDATE.md
+/WORK_SUMMARY*.md
+
+# Git
+/.git
+
+# 构建产物（已经在 dist 中）
+# 注意：不排除 dist，因为这是我们需要的
+
+# 其他
+/release
+/coverage
+/.cache
