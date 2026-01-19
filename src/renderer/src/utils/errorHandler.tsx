@@ -1,6 +1,6 @@
 /**
  * 统一错误处理工具
- * 
+ *
  * 提供统一的错误处理函数，用于格式化错误信息、分类错误类型、
  * 提供用户友好的错误提示等。
  */
@@ -48,7 +48,7 @@ export interface ErrorInfo {
 
 /**
  * 解析错误类型
- * 
+ *
  * 根据错误消息和错误对象判断错误类型。
  */
 export function parseErrorType(error: Error | string): ErrorType {
@@ -114,7 +114,7 @@ export function parseErrorType(error: Error | string): ErrorType {
 
 /**
  * 格式化错误信息
- * 
+ *
  * 将错误对象转换为统一的错误信息格式。
  */
 export function formatError(error: unknown): ErrorInfo {
@@ -174,7 +174,7 @@ export function formatError(error: unknown): ErrorInfo {
 
 /**
  * 获取用户友好的错误消息
- * 
+ *
  * 将技术错误消息转换为用户友好的提示。
  */
 export function getUserFriendlyMessage(errorInfo: ErrorInfo): string {
@@ -199,7 +199,7 @@ export function getUserFriendlyMessage(errorInfo: ErrorInfo): string {
 
 /**
  * 显示错误提示（使用 message）
- * 
+ *
  * 用于显示简短的错误提示，自动消失。
  */
 export function showError(error: unknown, duration: number = 4.5): void {
@@ -211,9 +211,7 @@ export function showError(error: unknown, duration: number = 4.5): void {
       <div>
         <div>{friendlyMessage}</div>
         {errorInfo.suggestion && (
-          <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
-            {errorInfo.suggestion}
-          </div>
+          <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>{errorInfo.suggestion}</div>
         )}
       </div>
     ),
@@ -223,13 +221,10 @@ export function showError(error: unknown, duration: number = 4.5): void {
 
 /**
  * 显示错误通知（使用 notification）
- * 
+ *
  * 用于显示详细的错误通知，需要手动关闭。
  */
-export function showErrorNotification(
-  error: unknown,
-  title: string = '操作失败'
-): void {
+export function showErrorNotification(error: unknown, title: string = '操作失败'): void {
   const errorInfo = formatError(error);
   const friendlyMessage = getUserFriendlyMessage(errorInfo);
 
@@ -239,14 +234,10 @@ export function showErrorNotification(
       <div>
         <div>{friendlyMessage}</div>
         {errorInfo.suggestion && (
-          <div style={{ fontSize: 12, color: '#999', marginTop: 8 }}>
-            💡 {errorInfo.suggestion}
-          </div>
+          <div style={{ fontSize: 12, color: '#999', marginTop: 8 }}>💡 {errorInfo.suggestion}</div>
         )}
         {errorInfo.retryable && (
-          <div style={{ fontSize: 12, color: '#1890ff', marginTop: 8 }}>
-            可以尝试重试此操作
-          </div>
+          <div style={{ fontSize: 12, color: '#1890ff', marginTop: 8 }}>可以尝试重试此操作</div>
         )}
       </div>
     ),
@@ -257,7 +248,7 @@ export function showErrorNotification(
 
 /**
  * 处理异步操作的错误
- * 
+ *
  * 包装异步函数，自动捕获和显示错误。
  */
 export function handleAsyncError<T>(
@@ -266,15 +257,15 @@ export function handleAsyncError<T>(
 ): Promise<T | null> {
   return asyncFn().catch((error) => {
     const errorInfo = formatError(error);
-    
+
     // 显示错误提示
     showError(errorInfo);
-    
+
     // 调用自定义错误处理
     if (onError) {
       onError(errorInfo);
     }
-    
+
     return null;
   });
 }

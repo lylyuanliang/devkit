@@ -19,7 +19,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    strictPort: false, // 如果端口被占用，自动尝试其他端口
+    strictPort: true, // 如果端口被占用，报错而不是使用其他端口
   },
   optimizeDeps: {
     exclude: ['electron'],

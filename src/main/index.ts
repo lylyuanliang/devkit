@@ -34,14 +34,43 @@ function createWindow(): void {
   // 加载应用
   if (process.env.NODE_ENV === 'development') {
     // 开发环境：加载Vite开发服务器
-    mainWindow.loadURL('http://localhost:5173');
+    // 尝试从环境变量获取端口，默认5173
+    const vitePort = process.env.VITE_PORT || '5173';
+    const viteUrl = `http://localhost:${vitePort}`;
+    console.log('Loading Vite dev server from:', viteUrl);
+
+    // 尝试加载，如果失败则尝试其他端口
+    const tryLoadUrl = async (url: string, ports: string[] = []): Promise<void> => {
+      try {
+        await mainWindow!.loadURL(url);
+        console.log('Successfully loaded:', url);
+      } catch (error) {
+        console.error(`Failed to load ${url}:`, error);
+        if (ports.length > 0) {
+          const nextPort = ports.shift()!;
+          const nextUrl = `http://localhost:${nextPort}`;
+          console.log('Trying alternative port:', nextUrl);
+          await tryLoadUrl(nextUrl, ports);
+        } else {
+          console.error('Failed to load Vite dev server on any port');
+          throw error;
+        }
+      }
+    };
+
+    // 尝试默认端口，如果失败则尝试 5174, 5175, 5176
+    const alternativePorts = ['5174', '5175', '5176'];
+    tryLoadUrl(viteUrl, alternativePorts).catch((error) => {
+      console.error('All port attempts failed:', error);
+    });
+
     mainWindow.webContents.openDevTools();
   } else {
     // 生产环境：加载打包后的文件
     const rendererPath = path.join(__dirname, '../renderer/index.html');
     console.log('Loading renderer from:', rendererPath);
     mainWindow.loadFile(rendererPath);
-    
+
     // 生产环境也打开 DevTools 便于调试
     mainWindow.webContents.openDevTools();
   }

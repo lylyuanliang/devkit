@@ -25,7 +25,7 @@
     "dev:renderer": "vite",
     "dev:main": "tsc -p tsconfig.main.json --watch",
     "dev:preload": "tsc -p tsconfig.preload.json --watch",
-    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .",
+    "dev:electron": "wait-on http://localhost:5173 -t 10000 && cross-env NODE_ENV=development electron .",
     "clean": "node -e \"require('fs').rmSync('dist', {recursive:true, force:true}); require('fs').rmSync('release', {recursive:true, force:true})\"",
     "clean:dist": "node -e \"require('fs').rmSync('dist', {recursive:true, force:true})\"",
     "clean:release": "node -e \"require('fs').rmSync('release', {recursive:true, force:true})\"",

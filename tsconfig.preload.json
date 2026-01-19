@@ -5,6 +5,7 @@
     "lib": ["ES2020", "DOM"],
     "module": "commonjs",
     "moduleResolution": "node",
+    "rootDir": "./src",
     "outDir": "./dist",
     "noEmit": false,
     "baseUrl": ".",
