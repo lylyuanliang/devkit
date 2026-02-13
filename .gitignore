@@ -9,6 +9,8 @@ dist
 release
 out
 build
+target
+src-tauri/target
 
 # Logs
 logs
