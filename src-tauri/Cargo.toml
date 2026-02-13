@@ -1,0 +1,24 @@
+[package]
+name = "devkit"
+version = "0.1.0"
+description = "A modular tool container application"
+authors = ["DevKit Team"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[package.metadata.bundle]
+identifier = "com.devkit.app"
+
+[package.metadata.tauri-windows]
+webview-fixed-runtime-path = ""

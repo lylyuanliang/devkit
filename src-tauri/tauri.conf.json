@@ -1,0 +1,37 @@
+{
+  "productName": "DevKit",
+  "version": "0.1.0",
+  "identifier": "com.devkit.app",
+  "build": {
+    "beforeDevCommand": "cd packages/core && yarn dev",
+    "beforeBuildCommand": "cd packages/core && yarn build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../packages/core/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "DevKit",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}
+
+
+
+
+
+
+
+

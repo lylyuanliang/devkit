@@ -1,0 +1,29 @@
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+}
+
+.app-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar-wrapper {
+  width: 250px;
+  transition: width 0.3s ease;
+  border-right: 1px solid var(--border-primary);
+}
+
+.sidebar-wrapper.collapsed {
+  width: 50px;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevKit - 界面预览</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #fff;
+            color: #333;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+            width: 100%;
+        }
+
+        .sidebar-wrapper {
+            width: 250px;
+            transition: width 0.3s ease;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-wrapper.collapsed {
+            width: 50px;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            background: #f5f5f5;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .collapse-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+        }
+
+        .sidebar-header h2 {
+            margin: 0 0 0 8px;
+            font-size: 16px;
+        }
+
+        .search-box {
+            padding: 12px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .tool-section {
+            padding: 12px;
+        }
+
+        .tool-section h3 {
+            margin: 0 0 8px 0;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #666;
+        }
+
+        .tool-section ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .tool-section li {
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .tool-section li:hover {
+            background: #e0e0e0;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .tab-bar {
+            display: flex;
+            background: #fafafa;
+            border-bottom: 1px solid #e0e0e0;
+            overflow-x: auto;
+            height: 40px;
+        }
+
+        .tab {
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            border-right: 1px solid #e0e0e0;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.2s;
+        }
+
+        .tab:hover {
+            background: #f0f0f0;
+        }
+
+        .tab.active {
+            background: white;
+            border-bottom: 2px solid #0066cc;
+        }
+
+        .tab span {
+            margin-right: 8px;
+            font-size: 14px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0;
+            color: #666;
+        }
+
+        .close-btn:hover {
+            color: #000;
+        }
+
+        .work-area {
+            flex: 1;
+            overflow: auto;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #999;
+        }
+
+        .empty-state h2 {
+            margin: 0 0 12px 0;
+            font-size: 24px;
+        }
+
+        .empty-state p {
+            margin: 0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-wrapper">
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <button class="collapse-btn">◀</button>
+                    <h2>Tools</h2>
+                </div>
+
+                <div class="search-box">
+                    <input type="text" placeholder="Search tools...">
+                </div>
+
+                <div class="tool-section">
+                    <h3>⭐ Recent</h3>
+                    <ul>
+                        <li>📨 Kafka Client</li>
+                    </ul>
+                </div>
+
+                <div class="tool-section">
+                    <h3>📨 Messaging</h3>
+                    <ul>
+                        <li>📨 Kafka Client</li>
+                        <li>🐰 RabbitMQ</li>
+                    </ul>
+                </div>
+
+                <div class="tool-section">
+                    <h3>🗄️ Database</h3>
+                    <ul>
+                        <li>🔴 MySQL</li>
+                        <li>🔴 Redis</li>
+                        <li>🔴 PostgreSQL</li>
+                    </ul>
+                </div>
+
+                <div class="tool-section">
+                    <h3>📊 Monitoring</h3>
+                    <ul>
+                        <li>📊 Prometheus</li>
+                        <li>📊 Grafana</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="tab-bar">
+                <div class="tab active">
+                    <span>📨 Kafka Client</span>
+                    <button class="close-btn">×</button>
+                </div>
+            </div>
+
+            <div class="work-area">
+                <div class="empty-state">
+                    <h2>Welcome to DevKit</h2>
+                    <p>Select a tool from the menu to get started</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
