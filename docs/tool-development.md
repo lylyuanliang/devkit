@@ -143,20 +143,125 @@ Edit `tools.config.json`:
 
 ## Event Communication
 
-Tools can emit and listen to events:
+### 工具内部事件（Local Events）
+
+工具可以发出和监听内部事件：
 
 ```typescript
-// Emit event
+// 发出事件
 tool.emit('data:received', { message: 'Hello' });
 
-// Listen to event
+// 监听事件
 tool.on('data:received', (data) => {
   console.log(data.message);
 });
 
-// Stop listening
+// 停止监听
 tool.off('data:received', handler);
 ```
+
+### 跨工具通信（Inter-Tool Communication）
+
+**概念**: EventBus 是全局单例，所有工具都可以访问。这允许不同工具之间的事件通信。
+
+**获取 EventBus 实例**:
+
+```typescript
+import { EventBus } from '@devkit/core/backend/event-bus';
+
+export class KafkaTool implements ToolInstance {
+  private eventBus = EventBus.getInstance();
+
+  async init(config: any): Promise<void> {
+    // 监听其他工具的事件
+    this.eventBus.on('other-tool:action', (data) => {
+      console.log('Received event from other tool:', data);
+    });
+  }
+
+  private notifyOtherTools(eventName: string, data: any): void {
+    // 向其他工具发送事件
+    this.eventBus.emit(eventName, data);
+  }
+}
+```
+
+**事件命名规范**:
+
+为了避免命名冲突，遵循以下规范：
+
+```
+格式: [tool-id]:[event-name]
+
+示例:
+- kafka:message-sent          // Kafka 工具发送了消息
+- kafka:consumer-lag-changed  // Kafka 消费进度变化
+- redis:key-updated           // Redis 工具的键更新了
+- database:query-executed     // 数据库工具执行了查询
+```
+
+**完整的跨工具通信范例**:
+
+```typescript
+// Kafka Tool 发送消息并通知其他工具
+class KafkaTool implements ToolInstance {
+  private eventBus = EventBus.getInstance();
+
+  async sendMessage(topic: string, message: any): Promise<void> {
+    try {
+      // 发送消息逻辑...
+      await this.kafkaProducer.send({ topic, messages: [{ value: JSON.stringify(message) }] });
+
+      // 通知所有订阅的工具
+      this.eventBus.emit('kafka:message-sent', {
+        timestamp: Date.now(),
+        topic,
+        message,
+        toolId: 'kafka-tool'
+      });
+    } catch (error) {
+      this.eventBus.emit('kafka:error', {
+        timestamp: Date.now(),
+        error: error.message,
+        toolId: 'kafka-tool'
+      });
+    }
+  }
+
+  async destroy(): Promise<void> {
+    // 清理时应该移除所有监听器
+    this.eventBus.removeAllListeners('kafka:*');
+  }
+}
+
+// 另一个工具监听 Kafka 事件
+class MonitoringTool implements ToolInstance {
+  private eventBus = EventBus.getInstance();
+
+  async init(config: any): Promise<void> {
+    // 监听 Kafka 消息发送事件
+    this.eventBus.on('kafka:message-sent', (data) => {
+      console.log(`Message sent to topic: ${data.topic}`);
+      this.updateMetrics(data);
+    });
+
+    // 监听 Kafka 错误
+    this.eventBus.on('kafka:error', (data) => {
+      console.error(`Kafka error: ${data.error}`);
+      this.logAlert(data);
+    });
+  }
+}
+```
+
+**跨工具通信的最佳实践**:
+
+1. **命名清晰**: 使用 `[tool-id]:[action]` 格式，避免歧义
+2. **包含元数据**: 事件数据中包含 `timestamp` 和 `toolId`，便于追踪
+3. **及时清理**: 在 `destroy()` 中移除所有监听器，避免内存泄漏
+4. **错误处理**: 发送事件时捕获异常，并发出错误事件
+5. **松耦合**: 不要假设其他工具是否监听了你的事件；反之亦然
+6. **文档化**: 在工具文档中列出它发出和监听的所有事件
 
 ## Best Practices
 
