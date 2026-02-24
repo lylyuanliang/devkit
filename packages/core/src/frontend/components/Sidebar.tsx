@@ -30,43 +30,51 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {!sidebarCollapsed && (
-        <>
-          <div className="search-box">
-            <input type="text" placeholder="Search tools..." />
-          </div>
-
-          {recentTools.length > 0 && (
-            <div className="tool-section">
-              <h3>⭐ Recent</h3>
-              <ul>
-                {recentTools.map((toolId) => {
-                  const tool = availableTools.find((t) => t.id === toolId);
-                  return tool ? (
-                    <li key={toolId} onClick={() => handleToolClick(toolId, tool.name)}>
-                      {tool.icon} {tool.name}
-                    </li>
-                  ) : null;
-                })}
-              </ul>
-            </div>
-          )}
-
-          {categories.map((category) => (
-            <div key={category} className="tool-section">
-              <h3>{category}</h3>
-              <ul>
-                {availableTools
-                  .filter((tool) => tool.category === category)
-                  .map((tool) => (
-                    <li key={tool.id} onClick={() => handleToolClick(tool.id, tool.name)}>
-                      {tool.icon} {tool.name}
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          ))}
-        </>
+        <div className="search-box">
+          <input type="text" placeholder="Search tools..." />
+        </div>
       )}
+
+      {recentTools.length > 0 && (
+        <div className={`tool-section ${sidebarCollapsed ? 'collapsed' : ''}`}>
+          {!sidebarCollapsed && <h3>⭐ Recent</h3>}
+          <ul>
+            {recentTools.map((toolId) => {
+              const tool = availableTools.find((t) => t.id === toolId);
+              return tool ? (
+                <li
+                  key={toolId}
+                  onClick={() => handleToolClick(toolId, tool.name)}
+                  title={sidebarCollapsed ? tool.name : ''}
+                >
+                  <span className="tool-icon">{tool.icon}</span>
+                  {!sidebarCollapsed && <span className="tool-name">{tool.name}</span>}
+                </li>
+              ) : null;
+            })}
+          </ul>
+        </div>
+      )}
+
+      {categories.map((category) => (
+        <div key={category} className={`tool-section ${sidebarCollapsed ? 'collapsed' : ''}`}>
+          {!sidebarCollapsed && <h3>{category}</h3>}
+          <ul>
+            {availableTools
+              .filter((tool) => tool.category === category)
+              .map((tool) => (
+                <li
+                  key={tool.id}
+                  onClick={() => handleToolClick(tool.id, tool.name)}
+                  title={sidebarCollapsed ? tool.name : ''}
+                >
+                  <span className="tool-icon">{tool.icon}</span>
+                  {!sidebarCollapsed && <span className="tool-name">{tool.name}</span>}
+                </li>
+              ))}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 };

@@ -4,6 +4,7 @@
   "description": "Main window capabilities",
   "windows": ["main"],
   "permissions": [
+    "core:default",
     "core:window:allow-minimize",
     "core:window:allow-maximize",
     "core:window:allow-close",

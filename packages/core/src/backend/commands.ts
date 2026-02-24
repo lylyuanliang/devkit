@@ -1,6 +1,7 @@
 import { ToolRegistryImpl } from './tool-registry';
 import { DatabaseService } from './database';
 import { EventBus, CORE_EVENTS } from './event-bus';
+import { registerBuiltInTools } from './tools-init';
 import { ToolStatus } from '@devkit/shared';
 
 let registry: ToolRegistryImpl;
@@ -11,6 +12,9 @@ export function initializeBackend() {
   registry = new ToolRegistryImpl();
   db = new DatabaseService();
   eventBus = EventBus.getInstance();
+
+  // Register built-in tools (including Kafka Tool)
+  registerBuiltInTools(registry);
 }
 
 #[tauri::command]

@@ -39,6 +39,8 @@ export const useThemePersistence = () => {
     if (theme) {
       applyTheme(theme);
     }
+    // 派发自定义事件，通知所有子组件主题已改变
+    window.dispatchEvent(new Event('devkit-theme-changed'));
   }, [currentTheme]);
 };
 

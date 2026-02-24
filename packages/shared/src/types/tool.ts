@@ -43,3 +43,14 @@ export interface ToolMetadata {
   version: string;
   status: ToolStatus;
 }
+
+export interface EventSource {
+  publish(topic: string, message: any): Promise<void>;
+  subscribe(topic: string, handler: (message: any) => void): Promise<void>;
+  unsubscribe(topic: string, handler: Function): Promise<void>;
+}
+
+export interface EncryptedValue {
+  value: string;
+  encrypted: true;
+}

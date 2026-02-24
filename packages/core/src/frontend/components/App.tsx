@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../store';
 import { useThemePersistence } from '../hooks/useTheme';
+import { useInitialize } from '../hooks/useInitialize';
 import { TitleBar } from './TitleBar';
 import { Sidebar } from './Sidebar';
 import { TabBar } from './TabBar';
@@ -9,6 +10,9 @@ import './App.css';
 
 export const App: React.FC = () => {
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
+
+  // Initialize app (load tools, restore state)
+  useInitialize();
 
   // Initialize theme persistence
   useThemePersistence();

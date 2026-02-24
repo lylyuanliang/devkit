@@ -101,10 +101,50 @@ yarn build
 
 See `docs/tool-development.md` for detailed instructions on creating new tools.
 
+## Event Source Registry
+
+The `EventSourceRegistry` is a centralized system that allows tools to act as replaceable event sources, enabling tool-level substitutability:
+
+### Purpose
+
+- **Tool Substitutability**: Tools implementing the `EventSource` interface can be swapped at runtime
+- **Decoupling**: Other tools use `EventSourceRegistry.getCurrent()` instead of depending on specific tool implementations
+- **Future Flexibility**: Easily switch between Kafka, Redis, RabbitMQ, or other message queues
+
+### EventSource Interface
+
+```typescript
+interface EventSource {
+  publish(topic: string, message: any): Promise<void>;
+  subscribe(topic: string, handler: (message: any) => void): Promise<void>;
+  unsubscribe(topic: string, handler: Function): Promise<void>;
+}
+```
+
+### Usage
+
+```typescript
+// In a tool that needs to use an event source
+const eventSource = EventSourceRegistry.getCurrent();
+await eventSource.publish('my-topic', { data: 'value' });
+```
+
+### Current Implementation
+
+The **Kafka Tool** currently implements the `EventSource` interface:
+- Cluster management with SASL/SSL support
+- Secure credential storage (AES-256-GCM encryption)
+- Topic and consumer group operations
+- Real-time lag monitoring and alerts
+
+See `packages/tools/kafka-tool/README.md` for details.
+
 ## Key Features
 
 - **Modular Architecture**: Tools are independent and can be developed separately
 - **Flexible Packaging**: Choose which tools to include in builds
 - **Persistent State**: Configuration and recent tools are saved
-- **Event-Driven**: Tools can communicate via event bus
+- **Event-Driven**: Tools can communicate via event bus and event sources
+- **Tool-Level Substitutability**: EventSource-implementing tools can be swapped at runtime
+- **Secure Storage**: Sensitive configuration encrypted with AES-256-GCM
 - **Lightweight**: Tauri-based, ~20-50MB vs Electron's 150-300MB

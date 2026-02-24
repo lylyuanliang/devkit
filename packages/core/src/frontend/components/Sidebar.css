@@ -50,6 +50,11 @@
   font-size: 16px;
   padding: 4px 8px;
   color: var(--text-primary);
+  min-width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .sidebar-header h2 {
@@ -99,6 +104,28 @@
   border-radius: 4px;
   transition: background 0.2s;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-section.collapsed li {
+  padding: 12px;
+  justify-content: center;
+}
+
+.tool-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tool-section li:hover {

@@ -273,6 +273,110 @@ class MonitoringTool implements ToolInstance {
 6. **Document configuration**: Explain what config options do
 7. **Provide feedback**: Use status indicators and events
 
+## Example: Kafka Tool
+
+### Overview
+
+The Kafka Tool demonstrates a complete, production-ready tool implementation with:
+- Multiple service layers (Admin, Producer, Consumer, Lag Monitoring)
+- EventSource interface implementation for tool-level substitutability
+- Secure credential storage with encryption
+- Rich UI components with Zustand state management
+- Comprehensive event publishing for cross-tool communication
+
+### Key Files
+
+- **Service Layer**: `src/service/*.ts` - Kafka operations (connection, admin, producer, consumer, monitoring)
+- **Core Tool**: `src/index.ts` - KafkaTool class implementing ToolInstance and EventSource
+- **UI Components**: `src/ui/*.tsx` - Cluster, Topic, Message, Monitoring management
+- **State**: `src/ui/store.ts` - Zustand store for UI state
+- **Types**: `src/types/index.ts` - TypeScript interfaces for Kafka entities
+
+### Using Kafka Tool as Event Source
+
+If Kafka Tool is configured as the event source, other tools can use it for messaging:
+
+```typescript
+import { EventSourceRegistry } from '@devkit/core/backend/event-source-registry';
+
+// In another tool's init() method
+async someToolInit() {
+  // Publish a message to Kafka
+  const eventSource = EventSourceRegistry.getCurrent();
+  await eventSource.publish('my-topic', {
+    data: 'hello',
+    timestamp: Date.now()
+  });
+
+  // Subscribe to a topic
+  await eventSource.subscribe('my-topic', (message) => {
+    console.log('Received:', message);
+  });
+}
+```
+
+### Events Emitted
+
+The Kafka Tool emits the following events that other tools can subscribe to:
+
+- `kafka:registered-as-event-source` - When configured as event source
+- `kafka:cluster-connected` - When connected to a cluster
+- `kafka:message-sent` - When a message is published
+- `kafka:consumer-created` - When a consumer group is created
+- `kafka:lag-alert` - When consumer lag exceeds threshold
+- `kafka:error` - When an error occurs
+
+Subscribe using the EventBus:
+
+```typescript
+const eventBus = EventBus.getInstance();
+eventBus.on('kafka:message-sent', (data) => {
+  console.log(`Message sent to ${data.topic}:`, data.partition);
+});
+```
+
+### Architecture Pattern
+
+The Kafka Tool follows this architecture:
+
+```
+KafkaTool (ToolInstance + EventSource)
+  ├─ init() / destroy()  - Lifecycle
+  ├─ getComponent()      - React UI
+  ├─ publish/subscribe   - Event source interface
+  ├─ KafkaService
+  │  ├─ KafkaConnectionManager
+  │  ├─ KafkaAdminService
+  │  ├─ KafkaProducerService
+  │  ├─ KafkaConsumerService
+  │  ├─ ConsumerGroupService
+  │  └─ LagMonitorService
+  └─ EventBus integration
+     └─ Emits kafka:* events
+```
+
+### Configuration Storage
+
+Cluster configurations are stored securely:
+
+```typescript
+// Passwords encrypted with AES-256-GCM
+const cluster: KafkaClusterConfig = {
+  id: 'prod-cluster',
+  name: 'Production',
+  brokers: ['kafka1:9092', 'kafka2:9092'],
+  sasl: { mechanism: 'plain', username: 'admin' },
+  // Password stored separately in encrypted storage
+};
+
+await kafkaTool.saveCluster(cluster, password);
+```
+
+The master encryption key is automatically managed:
+- Generated on first run at `~/.devkit/master.key`
+- Protected with file permissions (0o600)
+- Used to encrypt/decrypt sensitive data via DatabaseService
+
 ## Example: Simple Counter Tool
 
 ```typescript
