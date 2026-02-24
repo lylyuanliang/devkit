@@ -265,6 +265,8 @@ const KafkaToolComponent: React.FC = () => {
   const [consumeSearchCaseSensitive, setConsumeSearchCaseSensitive] = useState(false);
   const [consumeSearchOffsetMin, setConsumeSearchOffsetMin] = useState('');
   const [consumeSearchOffsetMax, setConsumeSearchOffsetMax] = useState('');
+  const [consumeSearchTimestampMin, setConsumeSearchTimestampMin] = useState('');
+  const [consumeSearchTimestampMax, setConsumeSearchTimestampMax] = useState('');
   const [messageDisplayFormat, setMessageDisplayFormat] = useState<'text' | 'json' | 'base64' | 'hex'>('text');
   const [consumeTopicStats, setConsumeTopicStats] = useState<{ totalMessages: number; minOffset: number; maxOffset: number } | null>(null);
   const [consumePartition, setConsumePartition] = useState<number | 'all'>(0);
@@ -1173,6 +1175,8 @@ const KafkaToolComponent: React.FC = () => {
                                 setConsumeSearchContent('');
                                 setConsumeSearchOffsetMin('');
                                 setConsumeSearchOffsetMax('');
+                                setConsumeSearchTimestampMin('');
+                                setConsumeSearchTimestampMax('');
                               }}
                               style={{ ...styles.button, backgroundColor: '#9ca3af' }}
                               title="清除所有过滤"
@@ -1208,6 +1212,26 @@ const KafkaToolComponent: React.FC = () => {
                               value={consumeSearchOffsetMax}
                               onChange={(e) => setConsumeSearchOffsetMax(e.target.value)}
                               style={{ ...styles.input, flex: 1, minWidth: '80px' }}
+                            />
+                          </div>
+
+                          {/* Timestamp Range Filter */}
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '12px', flexWrap: 'wrap' }}>
+                            <span style={{ color: styles.textSecondary, minWidth: '60px' }}>时间范围:</span>
+                            <input
+                              type="datetime-local"
+                              placeholder="开始时间"
+                              value={consumeSearchTimestampMin}
+                              onChange={(e) => setConsumeSearchTimestampMin(e.target.value)}
+                              style={{ ...styles.input, flex: 1, minWidth: '180px' }}
+                            />
+                            <span style={{ color: styles.textSecondary }}>-</span>
+                            <input
+                              type="datetime-local"
+                              placeholder="结束时间"
+                              value={consumeSearchTimestampMax}
+                              onChange={(e) => setConsumeSearchTimestampMax(e.target.value)}
+                              style={{ ...styles.input, flex: 1, minWidth: '180px' }}
                             />
                           </div>
 
@@ -1461,7 +1485,23 @@ const KafkaToolComponent: React.FC = () => {
                                 });
                               }
 
-                              if (filteredMessages.length === 0 && (consumeSearchKey || consumeSearchContent || consumeSearchOffsetMin || consumeSearchOffsetMax)) {
+                              // Filter by timestamp range
+                              if (consumeSearchTimestampMin) {
+                                const minTimestamp = new Date(consumeSearchTimestampMin).getTime();
+                                filteredMessages = filteredMessages.filter((msg) => {
+                                  const timestamp = typeof msg.timestamp === 'string' ? parseInt(msg.timestamp) : msg.timestamp;
+                                  return timestamp >= minTimestamp;
+                                });
+                              }
+                              if (consumeSearchTimestampMax) {
+                                const maxTimestamp = new Date(consumeSearchTimestampMax).getTime();
+                                filteredMessages = filteredMessages.filter((msg) => {
+                                  const timestamp = typeof msg.timestamp === 'string' ? parseInt(msg.timestamp) : msg.timestamp;
+                                  return timestamp <= maxTimestamp;
+                                });
+                              }
+
+                              if (filteredMessages.length === 0 && (consumeSearchKey || consumeSearchContent || consumeSearchOffsetMin || consumeSearchOffsetMax || consumeSearchTimestampMin || consumeSearchTimestampMax)) {
                                 return (
                                   <div style={styles.emptyMessage}>
                                     没有找到匹配的消息

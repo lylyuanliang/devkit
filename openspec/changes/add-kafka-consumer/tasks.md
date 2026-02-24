@@ -59,7 +59,7 @@
 - [x] 6.1 Implement search box UI for message key search
 - [x] 6.2 Implement search box for content search
 - [x] 6.3 Implement offset range filter
-- [ ] 6.4 Implement timestamp range filter
+- [x] 6.4 Implement timestamp range filter
 - [x] 6.5 Add case-sensitive toggle for search
 - [ ] 6.6 Implement search highlight in message list
 - [x] 6.7 Add search result count display
