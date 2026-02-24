@@ -456,7 +456,9 @@ const KafkaToolComponent: React.FC = () => {
         error: undefined,
         lastConnectionAttempt: undefined,
       };
-      setClusters([...clusters, newCluster]);
+      const updatedClusters = [...clusters, newCluster];
+      setClusters(updatedClusters);
+      localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
       setNewClusterName('');
       setNewClusterBrokers('');
     }
@@ -482,7 +484,7 @@ const KafkaToolComponent: React.FC = () => {
       // Real validation will happen when user tries to consume/produce
       const topics = ['__consumer_offsets', 'devkit-test', 'orders', 'payments', 'users', 'logs'];
 
-      setClusters(clusters.map(c =>
+      const updatedClusters = clusters.map(c =>
         c.id === clusterId ? {
           ...c,
           connected: true,
@@ -490,7 +492,26 @@ const KafkaToolComponent: React.FC = () => {
           error: undefined,
           lastConnectionAttempt: Date.now()
         } : c
-      ));
+      );
+
+      setClusters(updatedClusters);
+      localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
+
+      // Auto-create environment for this cluster if it doesn't exist
+      const envExists = environments.find(e => e.name === cluster.name);
+      if (!envExists) {
+        const newEnv: KafkaEnvironmentConfig = {
+          name: cluster.name,
+          host: cluster.brokers[0]?.split(':')[0] || 'localhost',
+          brokers: cluster.brokers,
+          description: `Auto-created from cluster: ${cluster.name}`,
+        };
+
+        const updatedEnvs = [...environments, newEnv];
+        setEnvironments(updatedEnvs);
+        localStorage.setItem('kafka-environments', JSON.stringify(updatedEnvs));
+        console.log(`自动创建环境: ${cluster.name}`);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '未知错误';
       console.error('连接失败:', error);
@@ -512,24 +533,28 @@ const KafkaToolComponent: React.FC = () => {
   const handleDisconnectCluster = async (clusterId: string) => {
     try {
       await KafkaAPI.disconnectCluster(clusterId);
-      setClusters(clusters.map(c =>
+      const updatedClusters = clusters.map(c =>
         c.id === clusterId ? {
           ...c,
           connected: false,
           topics: [],
           error: undefined  // Clear error on manual disconnect
         } : c
-      ));
+      );
+      setClusters(updatedClusters);
+      localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '未知错误';
       console.error('断开连接失败:', error);
-      setClusters(clusters.map(c =>
+      const updatedClusters = clusters.map(c =>
         c.id === clusterId ? {
           ...c,
           error: errorMessage,
           lastConnectionAttempt: Date.now()
         } : c
-      ));
+      );
+      setClusters(updatedClusters);
+      localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
     }
   };
 
@@ -544,7 +569,25 @@ const KafkaToolComponent: React.FC = () => {
       }
     }
 
-    setClusters(clusters.filter(c => c.id !== clusterId));
+    // Delete cluster
+    const updatedClusters = clusters.filter(c => c.id !== clusterId);
+    setClusters(updatedClusters);
+    localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
+
+    // Also delete corresponding environment to maintain consistency
+    if (cluster?.name) {
+      const updatedEnvs = environments.filter(e => e.name !== cluster.name);
+      setEnvironments(updatedEnvs);
+      localStorage.setItem('kafka-environments', JSON.stringify(updatedEnvs));
+
+      // If deleted environment was active, switch to another
+      if (activeEnvironment === cluster.name && updatedEnvs.length > 0) {
+        setActiveEnvironment(updatedEnvs[0].name);
+        localStorage.setItem('kafka-active-environment', updatedEnvs[0].name);
+      }
+
+      console.log(`同时删除环境: ${cluster.name}`);
+    }
   };
 
   // Environment management handlers
@@ -556,6 +599,19 @@ const KafkaToolComponent: React.FC = () => {
       if (!env) {
         setEnvironmentError('Environment not found');
         return;
+      }
+
+      // Try to find and connect to corresponding cluster
+      const matchingCluster = clusters.find(c => c.name === name);
+      if (matchingCluster) {
+        if (!matchingCluster.connected) {
+          // Auto-connect to the cluster if not already connected
+          console.log(`自动连接集群: ${matchingCluster.name}`);
+          await handleConnectCluster(matchingCluster.id);
+        }
+      } else {
+        // Cluster not found, just switch environment
+        console.warn(`未找到匹配的集群: ${name}`);
       }
 
       setActiveEnvironment(name);
@@ -589,6 +645,29 @@ const KafkaToolComponent: React.FC = () => {
       const newEnvs = environments.map(e => e.name === name ? env : e);
       setEnvironments(newEnvs);
       localStorage.setItem('kafka-environments', JSON.stringify(newEnvs));
+
+      // Also update corresponding cluster if it exists
+      const matchingCluster = clusters.find(c => c.name === name);
+      if (matchingCluster) {
+        setClusters(clusters.map(c =>
+          c.name === name ? {
+            ...c,
+            brokers: env.brokers,
+            // Note: host is just for display in environment manager
+          } : c
+        ));
+        // Save updated clusters to localStorage
+        localStorage.setItem('kafka-clusters', JSON.stringify(
+          clusters.map(c =>
+            c.name === name ? {
+              ...c,
+              brokers: env.brokers,
+            } : c
+          )
+        ));
+        console.log(`同时更新集群配置: ${name}`);
+      }
+
       setEnvironmentError('');
     } catch (error) {
       setEnvironmentError(`Failed to edit environment: ${error instanceof Error ? error.message : 'Unknown error'}`);

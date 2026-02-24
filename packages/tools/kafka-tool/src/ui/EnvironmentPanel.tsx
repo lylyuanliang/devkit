@@ -111,7 +111,7 @@ export const EnvironmentPanel: React.FC<EnvironmentPanelProps> = ({
       )}
 
       {/* Active Environment Info */}
-      {!isLoading && (
+      {!isLoading && environments.length > 0 ? (
         <div style={{
           padding: '12px',
           backgroundColor: '#f0fdf4',
@@ -123,10 +123,25 @@ export const EnvironmentPanel: React.FC<EnvironmentPanelProps> = ({
         }}>
           <p style={{ margin: '0 0 6px 0' }}>✓ 当前环境</p>
           <p style={{ margin: 0, fontWeight: 600 }}>
-            {environments.find(e => e.name === activeEnvironment)?.name || 'Unknown'}
+            {environments.find(e => e.name === activeEnvironment)?.name || activeEnvironment}
           </p>
           <p style={{ margin: '6px 0 0 0', fontSize: '12px' }}>
-            {environments.find(e => e.name === activeEnvironment)?.host}
+            {environments.find(e => e.name === activeEnvironment)?.host || '(未配置)'}
+          </p>
+        </div>
+      ) : (
+        <div style={{
+          padding: '12px',
+          backgroundColor: '#fef3c7',
+          border: '1px solid #fcd34d',
+          borderRadius: '6px',
+          marginBottom: '16px',
+          fontSize: '14px',
+          color: '#92400e',
+        }}>
+          <p style={{ margin: '0 0 6px 0' }}>⚠️ 未配置环境</p>
+          <p style={{ margin: 0 }}>
+            请下方创建第一个环境以开始使用
           </p>
         </div>
       )}
