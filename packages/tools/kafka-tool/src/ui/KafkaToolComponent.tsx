@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { KafkaAPI } from '../service/kafka-api';
+import EnvironmentPanel from './EnvironmentPanel';
 
 interface Cluster {
   id: string;
@@ -7,6 +8,14 @@ interface Cluster {
   brokers: string[];
   connected?: boolean;
   topics?: string[];
+}
+
+interface KafkaEnvironmentConfig {
+  name: string;
+  host: string;
+  brokers: string[];
+  description?: string;
+  tags?: string[];
 }
 
 // Validate JSON format
@@ -215,7 +224,7 @@ const createThemeStyles = (isDarkMode: boolean) => {
 };
 
 const KafkaToolComponent: React.FC = () => {
-  const [activeView, setActiveView] = useState<'clusters' | 'topics' | 'consumer-groups' | 'produce' | 'monitoring' | 'settings'>('clusters');
+  const [activeView, setActiveView] = useState<'clusters' | 'topics' | 'consumer-groups' | 'produce' | 'monitoring' | 'environments' | 'settings'>('clusters');
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [newClusterName, setNewClusterName] = useState('');
   const [newClusterBrokers, setNewClusterBrokers] = useState('');
@@ -270,6 +279,12 @@ const KafkaToolComponent: React.FC = () => {
   const [messageDisplayFormat, setMessageDisplayFormat] = useState<'text' | 'json' | 'base64' | 'hex'>('text');
   const [consumeTopicStats, setConsumeTopicStats] = useState<{ totalMessages: number; minOffset: number; maxOffset: number } | null>(null);
   const [consumePartition, setConsumePartition] = useState<number | 'all'>(0);
+
+  // Environment management state
+  const [environments, setEnvironments] = useState<KafkaEnvironmentConfig[]>([]);
+  const [activeEnvironment, setActiveEnvironment] = useState<string>('default');
+  const [environmentLoading, setEnvironmentLoading] = useState(false);
+  const [environmentError, setEnvironmentError] = useState<string>('');
 
   // 计算连接的集群（放在状态声明之后，useEffect之前）
   const connectedCluster = clusters.find(c => c.connected);
@@ -382,6 +397,25 @@ const KafkaToolComponent: React.FC = () => {
       }
     };
     loadClustersAndReconnect();
+
+    // 加载环境配置
+    try {
+      const savedEnvs = localStorage.getItem('kafka-environments');
+      if (savedEnvs) {
+        const parsed = JSON.parse(savedEnvs);
+        setEnvironments(parsed);
+      } else {
+        // 初始化默认环境
+        setEnvironments([]);
+      }
+
+      const savedActiveEnv = localStorage.getItem('kafka-active-environment');
+      if (savedActiveEnv) {
+        setActiveEnvironment(savedActiveEnv);
+      }
+    } catch (error) {
+      console.error('读取环境配置失败:', error);
+    }
   }, []);
 
   // 当 clusters 变化时保存到 localStorage
@@ -464,6 +498,96 @@ const KafkaToolComponent: React.FC = () => {
     }
 
     setClusters(clusters.filter(c => c.id !== clusterId));
+  };
+
+  // Environment management handlers
+  const handleSwitchEnvironment = async (name: string) => {
+    setEnvironmentLoading(true);
+    setEnvironmentError('');
+    try {
+      const env = environments.find(e => e.name === name);
+      if (!env) {
+        setEnvironmentError('Environment not found');
+        return;
+      }
+
+      setActiveEnvironment(name);
+      localStorage.setItem('kafka-active-environment', name);
+    } catch (error) {
+      setEnvironmentError(`Failed to switch environment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setEnvironmentLoading(false);
+    }
+  };
+
+  const handleAddEnvironment = async (env: KafkaEnvironmentConfig) => {
+    try {
+      // Check if environment already exists
+      if (environments.find(e => e.name === env.name)) {
+        setEnvironmentError('Environment name already exists');
+        return;
+      }
+
+      const newEnvs = [...environments, env];
+      setEnvironments(newEnvs);
+      localStorage.setItem('kafka-environments', JSON.stringify(newEnvs));
+      setEnvironmentError('');
+    } catch (error) {
+      setEnvironmentError(`Failed to add environment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleEditEnvironment = async (name: string, env: KafkaEnvironmentConfig) => {
+    try {
+      const newEnvs = environments.map(e => e.name === name ? env : e);
+      setEnvironments(newEnvs);
+      localStorage.setItem('kafka-environments', JSON.stringify(newEnvs));
+      setEnvironmentError('');
+    } catch (error) {
+      setEnvironmentError(`Failed to edit environment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleDeleteEnvironment = async (name: string) => {
+    try {
+      const newEnvs = environments.filter(e => e.name !== name);
+      setEnvironments(newEnvs);
+      localStorage.setItem('kafka-environments', JSON.stringify(newEnvs));
+
+      // If deleted environment was active, switch to another
+      if (activeEnvironment === name && newEnvs.length > 0) {
+        setActiveEnvironment(newEnvs[0].name);
+        localStorage.setItem('kafka-active-environment', newEnvs[0].name);
+      }
+
+      setEnvironmentError('');
+    } catch (error) {
+      setEnvironmentError(`Failed to delete environment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleDuplicateEnvironment = async (name: string) => {
+    try {
+      const source = environments.find(e => e.name === name);
+      if (!source) {
+        setEnvironmentError('Environment not found');
+        return;
+      }
+
+      const newName = `${name}-copy`;
+      if (environments.find(e => e.name === newName)) {
+        setEnvironmentError('Duplicate environment name already exists');
+        return;
+      }
+
+      const newEnv = { ...source, name: newName };
+      const newEnvs = [...environments, newEnv];
+      setEnvironments(newEnvs);
+      localStorage.setItem('kafka-environments', JSON.stringify(newEnvs));
+      setEnvironmentError('');
+    } catch (error) {
+      setEnvironmentError(`Failed to duplicate environment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   // Handle message production
@@ -680,6 +804,7 @@ const KafkaToolComponent: React.FC = () => {
     { id: 'topics', label: '📚 Topics', icon: '📚' },
     { id: 'consumer-groups', label: '👥 消费者组', icon: '👥' },
     { id: 'produce', label: '📤 生产消息', icon: '📤' },
+    { id: 'environments', label: '🔌 环境管理', icon: '🔌' },
     { id: 'monitoring', label: '📊 监控', icon: '📊' },
     { id: 'settings', label: '⚙️ 设置', icon: '⚙️' },
   ];
@@ -794,6 +919,7 @@ const KafkaToolComponent: React.FC = () => {
                 {item.id === 'topics' && '📚'}
                 {item.id === 'consumer-groups' && '👥'}
                 {item.id === 'produce' && '📤'}
+                {item.id === 'environments' && '🔌'}
                 {item.id === 'monitoring' && '📊'}
                 {item.id === 'settings' && '⚙️'}
               </span>
@@ -1769,6 +1895,21 @@ const KafkaToolComponent: React.FC = () => {
                 此功能开发中...
               </div>
             </div>
+          )}
+
+          {/* 环境管理 */}
+          {activeView === 'environments' && (
+            <EnvironmentPanel
+              environments={environments}
+              activeEnvironment={activeEnvironment}
+              isLoading={environmentLoading}
+              onSwitch={handleSwitchEnvironment}
+              onAdd={handleAddEnvironment}
+              onEdit={handleEditEnvironment}
+              onDelete={handleDeleteEnvironment}
+              onDuplicate={handleDuplicateEnvironment}
+              error={environmentError}
+            />
           )}
 
           {/* 设置 */}
