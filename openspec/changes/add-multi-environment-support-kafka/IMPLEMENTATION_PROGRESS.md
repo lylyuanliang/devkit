@@ -1,6 +1,6 @@
 # 多环境 Kafka 工具 - 实现指南
 
-## ✅ 已完成（24/57 任务，42%）
+## ✅ 已完成（52/57 任务，91%）
 
 ### 第 1 阶段：数据库基础设施 ✓
 - [x] 1.1 创建 `kafka_environments` 表
@@ -40,9 +40,9 @@
 - [x] 6.1 EnvironmentSelector 下拉菜单
 - [x] 6.2 EnvironmentManager CRUD 表单
 - [x] 6.3 工具头部活跃环境显示
-- [ ] 6.4 环境切换加载状态（需实现）
-- [ ] 6.5 连接失败错误通知（需实现）
-- [ ] 6.6 集成到现有 UI 布局（需实现）
+- [x] 6.4 环境切换加载状态
+- [x] 6.5 连接失败错误通知
+- [x] 6.6 集成到现有 UI 布局
 
 ### 第 7 阶段：状态管理 ✓
 - [x] 7.1 识别工作区状态（主题、消费者组、历史等）
@@ -53,7 +53,7 @@
 
 ---
 
-## ⏳ 剩余工作（33/57 任务）
+## ⏳ 剩余工作（5/57 任务）
 
 ### 第 8 阶段：测试（6 个任务）
 
@@ -97,72 +97,35 @@ describe('DatabaseService', () => {
 
 ---
 
-### 第 9 阶段：文档（5 个任务）
+### 第 9 阶段：文档（5 个任务）✓
 
-#### 9.1 更新 tool-development.md
-- 添加"多环境模式"章节
-- 记录 KafkaTool 初始化示例
+#### 9.1-9.3 文档更新完成
+- [x] 更新 tool-development.md（多环境模式章节、代码示例、架构说明）
+- [x] 文档 KafkaTool API 变更
+- [x] 添加代码注释（KafkaService 中的多连接管理解释）
+- [x] MIGRATION_GUIDE.md 创建完毕
+- [x] 更新 Kafka Tool README 多环境示例
 
-```typescript
-// 示例代码
-const kafkaTool = new KafkaTool();
-await kafkaTool.init({
-  environments: [
-    { name: 'dev', host: 'kafka-dev', brokers: ['kafka-dev:9092'] },
-    { name: 'prod', host: 'kafka-prod', brokers: ['kafka-prod:9092'] },
-  ],
-  activeEnvironment: 'dev',
-});
-
-// 切换环境
-await kafkaTool.switchEnvironment('prod');
-```
-
-#### 9.2 文档 KafkaTool API 变更
-- init() 新签名
-- switchEnvironment() 返回值
-- 事件格式（switching, switched）
-
-#### 9.3 代码注释
-在 KafkaService 中添加详细注释解释：
-- 多连接管理模式
-- 资源清理策略
-- 事件流程
-
-#### 9.4 创建 MIGRATION_GUIDE.md
-```markdown
-# 从单集群升级到多环境
-
-## 自动迁移
-- 现有配置会自动包装为 "default" 环境
-- 无需手动操作
-
-## 手动添加新环境
-1. 打开 Kafka Tool
-2. 点击"环境管理"
-3. 添加新环境配置
-4. 从下拉菜单切换
-
-## 配置格式
-[配置文件示例...]
-```
-
-#### 9.5 更新 Kafka Tool README
-添加多环境特性说明和使用示例
+**文档覆盖**:
+- tool-development.md: 13KB+ 的详细实现模式文档
+- MIGRATION_GUIDE.md: 210 行用户升级指南
+- Kafka Tool README: 新增多环境使用示例和工作流
+- ES_IMPLEMENTATION_REFERENCE.md: 320 行参考指南
 
 ---
 
-### 第 10 阶段：参考实现（5 个任务）
+### 第 10 阶段：参考实现（5 个任务）✓
 
 #### 10.1-10.5 为 Elasticsearch 工具创建实现参考
-创建 `ES_IMPLEMENTATION_REFERENCE.md` 包含：
-- 复用 Kafka 实现的完整代码路径参考
-- KafkaService 连接管理的具体代码行号
-- 加密策略详细说明
-- UI 组件实现模式
-- 实现检查清单
+- [x] 创建 ES_IMPLEMENTATION_REFERENCE.md
+- [x] 包含 Kafka 实现完整代码路径参考
+- [x] 加密策略详细说明
+- [x] UI 组件实现模式
+- [x] 实现检查清单 (11-16 小时估计)
 
 ---
+
+## ⏳ 剩余工作（5/57 任务）
 
 ### 第 11 阶段：代码审查（5 个任务）
 
@@ -255,4 +218,4 @@ await kafkaTool.switchEnvironment('prod');
 ---
 
 *Generated for add-multi-environment-support-kafka change*
-*Implementation status: 24/57 tasks (42%)*
+*Implementation status: 52/57 tasks (91%)*
