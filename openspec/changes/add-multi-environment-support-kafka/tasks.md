@@ -43,9 +43,9 @@
 - [x] 6.1 Create EnvironmentSelector component (dropdown or list) showing all saved environments
 - [x] 6.2 Create EnvironmentManager component for CRUD operations (add, edit, delete, duplicate environments)
 - [x] 6.3 Add active environment display in tool header/toolbar (prominently show current environment name)
-- [ ] 6.4 Implement loading spinner/state during environment switch
-- [ ] 6.5 Add error toast/notification for connection failures during switch
-- [ ] 6.6 Integrate EnvironmentSelector into existing Kafka tool UI layout
+- [x] 6.4 Implement loading spinner/state during environment switch
+- [x] 6.5 Add error toast/notification for connection failures during switch
+- [x] 6.6 Integrate EnvironmentSelector into existing Kafka tool UI layout
 
 ## 7. Workspace State Preservation
 
@@ -74,11 +74,11 @@
 
 ## 10. ES Tool Reference Documentation
 
-- [ ] 10.1 Create ES_IMPLEMENTATION_REFERENCE.md documenting the exact same pattern for ES tool
-- [ ] 10.2 Include code references to KafkaService for connection management
-- [ ] 10.3 Document encryption approach, event patterns, UI component patterns
-- [ ] 10.4 Provide checklist for applying same changes to ES tool
-- [ ] 10.5 **CRITICAL**: Mark all code locations where ES tool should read Kafka implementation to ensure alignment
+- [x] 10.1 Create ES_IMPLEMENTATION_REFERENCE.md documenting the exact same pattern for ES tool
+- [x] 10.2 Include code references to KafkaService for connection management
+- [x] 10.3 Document encryption approach, event patterns, UI component patterns
+- [x] 10.4 Provide checklist for applying same changes to ES tool
+- [x] 10.5 **CRITICAL**: Mark all code locations where ES tool should read Kafka implementation to ensure alignment
 
 ## 11. Code Review & Finalization
 

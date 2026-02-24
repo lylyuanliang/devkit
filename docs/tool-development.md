@@ -377,6 +377,298 @@ The master encryption key is automatically managed:
 - Protected with file permissions (0o600)
 - Used to encrypt/decrypt sensitive data via DatabaseService
 
+## Multi-Environment Support (Kafka Tool Pattern)
+
+For tools that need to support multiple environments/clusters/connections, the Kafka Tool implements a reusable pattern that can be applied to other tools like Elasticsearch.
+
+### Core Concepts
+
+**Multi-Environment Pattern**: Allow users to save and quickly switch between multiple configurations without losing their work context.
+
+- **Persistent Environment Storage**: Environments stored in database with encrypted credentials
+- **Active Environment Tracking**: Current environment per user/workspace
+- **Workspace State Isolation**: UI state (opened items, history, filters) preserved per environment
+- **Lifecycle Management**: Proper connection/disconnection handling during switches
+- **Event-Driven Updates**: Emit events for environment changes
+
+### Implementation Architecture
+
+```
+Tool (ToolInstance)
+  ├─ MultiConnectionService
+  │  ├─ Map<envName, Connection>  - One connection per environment
+  │  ├─ switchEnvironment()       - Lifecycle: disconnect old, connect new
+  │  ├─ loadEnvironments()        - Load from database
+  │  └─ disconnectEnvironment()   - Cleanup
+  ├─ DatabaseService
+  │  ├─ saveEnvironment()         - Persist config
+  │  ├─ listEnvironments()        - List all saved environments
+  │  ├─ saveSecure()              - Encrypt credentials (AES-256-GCM)
+  │  └─ loadSecure()              - Decrypt on retrieval
+  ├─ UI Components
+  │  ├─ EnvironmentSelector       - Dropdown for switching
+  │  ├─ EnvironmentManager        - CRUD form
+  │  └─ EnvironmentPanel          - Integrated view
+  └─ State Management (Zustand)
+     └─ Per-environment workspace state
+```
+
+### Database Schema
+
+```typescript
+// kafka_environments table
+CREATE TABLE kafka_environments (
+  id INTEGER PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  host TEXT NOT NULL,
+  brokers TEXT NOT NULL,           // JSON array
+  connectionConfig TEXT,             // JSON with auth details
+  monitoring TEXT,                   // JSON with settings
+  description TEXT,
+  tags TEXT,                         // JSON array
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+// kafka_active_environment table
+CREATE TABLE kafka_active_environment (
+  id INTEGER PRIMARY KEY,
+  environment TEXT NOT NULL UNIQUE,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Service Layer (Multi-Connection Management)
+
+```typescript
+export class KafkaService {
+  private environments: Map<string, KafkaEnvironmentConfig> = new Map();
+  private connections: Map<string, KafkaAdminClient> = new Map();
+  private activeEnvironment: string | null = null;
+
+  // Load all saved environments from database
+  async loadEnvironments(envConfigs: KafkaEnvironmentConfig[]): Promise<void> {
+    this.environments.clear();
+    for (const env of envConfigs) {
+      this.environments.set(env.name, env);
+    }
+  }
+
+  // Get single environment with decrypted credentials
+  async getEnvironment(name: string): Promise<KafkaEnvironmentConfig> {
+    const env = this.environments.get(name);
+    if (!env) throw new Error(`Environment not found: ${name}`);
+
+    // Decrypt auth credentials
+    if (env.connectionConfig?.auth) {
+      env.connectionConfig.auth.password = await database.loadSecure(
+        `${this.toolId}-env-${name}-auth`
+      );
+    }
+    return env;
+  }
+
+  // Switch environment with proper lifecycle
+  async switchEnvironment(name: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const env = await this.getEnvironment(name);
+
+      // 1. Disconnect old environment
+      if (this.activeEnvironment && this.connections.has(this.activeEnvironment)) {
+        const oldConnection = this.connections.get(this.activeEnvironment)!;
+        await oldConnection.disconnect();
+        this.connections.delete(this.activeEnvironment);
+      }
+
+      // 2. Create new connection
+      const newConnection = await this.createConnection(env);
+      this.connections.set(name, newConnection);
+
+      // 3. Update active environment
+      this.activeEnvironment = name;
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  private async createConnection(env: KafkaEnvironmentConfig): Promise<KafkaAdminClient> {
+    const client = new KafkaAdminClient({
+      brokers: env.brokers,
+      // auth config from env.connectionConfig
+    });
+
+    await client.connect();
+    return client;
+  }
+}
+```
+
+### Secure Credential Storage
+
+```typescript
+// Save environment with encrypted credentials
+async function saveEnvironment(env: KafkaEnvironmentConfig, password?: string) {
+  // 1. Save environment to database
+  await database.saveKafkaEnvironment(env);
+
+  // 2. Encrypt and store credentials separately
+  if (password) {
+    await database.saveSecure(
+      `kafka-env-${env.name}-auth`,
+      password,
+      MASTER_KEY
+    );
+  }
+
+  // 3. Warn user about backing up master key
+  if (isFirstSecureSave) {
+    showWarning('Back up ~/.devkit/master.key to avoid losing access to credentials');
+  }
+}
+
+// Load environment with decrypted credentials
+async function loadEnvironment(name: string) {
+  const env = await database.getKafkaEnvironment(name);
+
+  // Decrypt auth
+  if (env.connectionConfig?.auth) {
+    const password = await database.loadSecure(
+      `kafka-env-${name}-auth`,
+      MASTER_KEY
+    );
+    env.connectionConfig.auth.password = password;
+  }
+
+  return env;
+}
+```
+
+### UI Components
+
+**EnvironmentSelector**: Dropdown for switching environments
+```typescript
+<EnvironmentSelector
+  environments={environments}
+  activeEnvironment={activeEnvironment}
+  onSwitch={handleSwitch}
+/>
+```
+
+**EnvironmentManager**: CRUD form for managing environments
+```typescript
+<EnvironmentManager
+  environments={environments}
+  onAdd={handleAdd}
+  onEdit={handleEdit}
+  onDelete={handleDelete}
+  onDuplicate={handleDuplicate}
+/>
+```
+
+**EnvironmentPanel**: Integrated component with error handling
+```typescript
+<EnvironmentPanel
+  environments={environments}
+  activeEnvironment={activeEnvironment}
+  isLoading={isLoading}
+  onSwitch={handleSwitch}
+  onAdd={handleAdd}
+  onEdit={handleEdit}
+  onDelete={handleDelete}
+  onDuplicate={handleDuplicate}
+  error={error}
+/>
+```
+
+### Workspace State Preservation
+
+Use Zustand to store per-environment UI state:
+
+```typescript
+interface WorkspaceStatePerEnv {
+  environment: string;
+  openedItems: string[];        // Topics, indices, etc.
+  selectedItem: string | null;
+  queryHistory: Array<{ query: string; timestamp: number }>;
+  filters: Record<string, any>;
+  scrollPositions: Record<string, number>;
+  uiPreferences: Record<string, any>;
+  timestamp: number;
+}
+
+const useWorkspaceStore = create((set) => ({
+  statePerEnv: new Map<string, WorkspaceStatePerEnv>(),
+
+  getEnvironmentState: (env: string) => {
+    // Return existing or create new empty state
+  },
+
+  updateEnvironmentState: (env: string, updates: Partial<WorkspaceStatePerEnv>) => {
+    // Merge updates into environment state
+  },
+}));
+```
+
+### Event Emission
+
+```typescript
+// Emit events during environment switch
+this.eventEmitter.emit('kafka:environment:switching', { from, to });
+
+// After successful switch
+this.eventEmitter.emit('kafka:environment:switched', {
+  environment: name,
+  success: true
+});
+
+// On error
+this.eventEmitter.emit('kafka:environment:switched', {
+  environment: name,
+  success: false,
+  error: errorMessage
+});
+```
+
+### Applying to Other Tools
+
+To implement the same pattern in Elasticsearch or other tools:
+
+1. **Database**: Create `[tool]_environments` and `[tool]_active_environment` tables
+2. **Service**: Refactor connection logic to support Map<name, connection>
+3. **UI**: Use EnvironmentSelector, EnvironmentManager components or create similar
+4. **State**: Create per-environment state store with Zustand
+5. **Reference**: See `ES_IMPLEMENTATION_REFERENCE.md` for detailed checklist
+
+### Migration & Backward Compatibility
+
+For existing single-cluster tools:
+
+```typescript
+// Auto-migrate old config to new format
+async function migrateOldConfig(oldConfig: any) {
+  if (!isNewFormat(oldConfig)) {
+    const newEnv: KafkaEnvironmentConfig = {
+      name: 'default',
+      host: oldConfig.host,
+      brokers: oldConfig.brokers,
+      // ... other fields
+    };
+
+    await database.saveKafkaEnvironment(newEnv);
+    await setActiveEnvironment('default');
+
+    return newEnv;
+  }
+}
+```
+
+The migration happens transparently on first load, ensuring users see no disruption.
+
 ## Example: Simple Counter Tool
 
 ```typescript

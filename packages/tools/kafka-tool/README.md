@@ -41,6 +41,14 @@ A comprehensive Kafka client tool for DevKit that provides cluster management, t
 - Consumption rate calculation
 - Historical lag data
 
+### Multi-Environment Support (NEW)
+- Save and switch between multiple Kafka cluster configurations
+- Automatic workspace state preservation per environment (opened topics, history, filters)
+- One-click environment switching with sub-2 second performance
+- Per-environment connection management and lifecycle
+- Workspace state restoration automatically when switching back
+- Encrypted credential storage with secure master key management
+
 ### Event Source (Architecture)
 - Implements `EventSource` interface for tool-level substitutability
 - Other tools can publish messages via EventSourceRegistry
@@ -69,7 +77,87 @@ await eventSource.subscribe('my-topic', (message) => {
 });
 ```
 
-## Events Emitted
+## Multi-Environment Usage
+
+### Accessing Environment Manager
+
+Click the "🔌 环境管理" (Environment Management) tab in the Kafka Tool sidebar to access environment controls.
+
+### Creating Environments
+
+1. Click "🔌 环境管理" in the sidebar
+2. Click "+ 新建环境" (New Environment)
+3. Fill in:
+   - **Environment Name**: Unique identifier (e.g., `production`, `staging`, `dev`)
+   - **Host**: Primary broker hostname
+   - **Broker List**: Comma-separated list (e.g., `kafka1:9092,kafka2:9092`)
+   - **Description** (optional): Human-readable notes
+
+### Switching Environments
+
+- Use the dropdown in the environment panel to switch between saved environments
+- Workspace state (opened topics, history, filters) is automatically preserved and restored
+- Connection switches in typically < 2 seconds
+
+### Example Workflow
+
+```
+1. Start in "production" environment
+   - Open "orders-topic"
+   - Search for key "user-123"
+   - Workspace state saved locally
+
+2. Switch to "staging" environment
+   - Environment changes
+   - Previous workspace state cleared
+   - Start fresh in new environment
+
+3. Open "test-topic" in staging
+   - Do some testing
+   - Workspace state saved for staging
+
+4. Switch back to "production"
+   - Previous state is restored automatically
+   - "orders-topic" is re-opened
+   - Search history still available
+```
+
+### Programmatic Multi-Environment Support
+
+For tools implementing the multi-environment pattern:
+
+```typescript
+import { KafkaTool } from '@devkit/tools/kafka-tool';
+
+const kafkaTool = new KafkaTool();
+
+// Initialize with multiple environments
+await kafkaTool.init({
+  environments: [
+    {
+      name: 'production',
+      host: 'kafka-prod.example.com',
+      brokers: ['kafka-prod-1:9092', 'kafka-prod-2:9092']
+    },
+    {
+      name: 'staging',
+      host: 'kafka-staging.example.com',
+      brokers: ['kafka-staging:9092']
+    }
+  ],
+  activeEnvironment: 'staging'
+});
+
+// Switch environments programmatically
+await kafkaTool.switchEnvironment('production');
+
+// Listen for environment changes
+kafkaTool.on('kafka:environment:switched', (data) => {
+  console.log(`Switched to: ${data.environment}`);
+});
+```
+
+
 
 - `kafka:registered-as-event-source` - Tool registered as event source
 - `kafka:cluster-connected` - Connected to a Kafka cluster
