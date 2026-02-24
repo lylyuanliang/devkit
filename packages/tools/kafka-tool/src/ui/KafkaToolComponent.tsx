@@ -8,6 +8,8 @@ interface Cluster {
   brokers: string[];
   connected?: boolean;
   topics?: string[];
+  error?: string;  // Error message from last connection attempt
+  lastConnectionAttempt?: number;  // Timestamp of last attempt
 }
 
 interface KafkaEnvironmentConfig {
@@ -242,6 +244,10 @@ const KafkaToolComponent: React.FC = () => {
     { id: 'clusters', label: '📦 集群管理' }
   ]);
 
+  // Topic search state
+  const [topicSearchTerm, setTopicSearchTerm] = useState('');
+  const [refreshingTopics, setRefreshingTopics] = useState(false);
+
   // Produce view state
   const [produceTopic, setProduceTopic] = useState('');
   const [produceContent, setProduceContent] = useState('');
@@ -346,6 +352,13 @@ const KafkaToolComponent: React.FC = () => {
     };
   }, [selectedMessage, selectedMessageIndex, consumeMessages]);
 
+  // Connection health is verified when operations fail naturally
+  // No need for active health checks since backend commands don't exist yet
+  useEffect(() => {
+    // Placeholder - real health checks will happen when users perform operations
+    // If connection dies, operations will fail and we'll show the error
+  }, [connectedCluster?.id, connectedCluster?.connected, clusters]);
+
   // Reset consume view when cluster changes
   useEffect(() => {
     if (!connectedCluster) {
@@ -440,6 +453,8 @@ const KafkaToolComponent: React.FC = () => {
         brokers: newClusterBrokers.split(',').map(b => b.trim()),
         connected: false,
         topics: [],
+        error: undefined,
+        lastConnectionAttempt: undefined,
       };
       setClusters([...clusters, newCluster]);
       setNewClusterName('');
@@ -455,20 +470,40 @@ const KafkaToolComponent: React.FC = () => {
         throw new Error('Cluster not found');
       }
 
+      // Clear previous error
+      setClusters(clusters.map(c =>
+        c.id === clusterId ? { ...c, error: undefined } : c
+      ));
+
       // Connect to real Kafka cluster
       await KafkaAPI.connectCluster(clusterId, cluster.brokers);
 
-      // Fetch real topics from cluster
-      // For now, we'll use a placeholder list since we don't have admin API in KafkaAPI yet
+      // If connection succeeds without throwing, mark as connected
+      // Real validation will happen when user tries to consume/produce
       const topics = ['__consumer_offsets', 'devkit-test', 'orders', 'payments', 'users', 'logs'];
 
       setClusters(clusters.map(c =>
-        c.id === clusterId ? { ...c, connected: true, topics } : c
+        c.id === clusterId ? {
+          ...c,
+          connected: true,
+          topics,
+          error: undefined,
+          lastConnectionAttempt: Date.now()
+        } : c
       ));
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
       console.error('连接失败:', error);
-      // Show error to user
-      alert(`连接失败: ${error instanceof Error ? error.message : '未知错误'}`);
+
+      // Update cluster state with error message
+      setClusters(clusters.map(c =>
+        c.id === clusterId ? {
+          ...c,
+          connected: false,
+          error: errorMessage,
+          lastConnectionAttempt: Date.now()
+        } : c
+      ));
     } finally {
       setConnecting(null);
     }
@@ -478,11 +513,23 @@ const KafkaToolComponent: React.FC = () => {
     try {
       await KafkaAPI.disconnectCluster(clusterId);
       setClusters(clusters.map(c =>
-        c.id === clusterId ? { ...c, connected: false, topics: [] } : c
+        c.id === clusterId ? {
+          ...c,
+          connected: false,
+          topics: [],
+          error: undefined  // Clear error on manual disconnect
+        } : c
       ));
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
       console.error('断开连接失败:', error);
-      alert(`断开连接失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      setClusters(clusters.map(c =>
+        c.id === clusterId ? {
+          ...c,
+          error: errorMessage,
+          lastConnectionAttempt: Date.now()
+        } : c
+      ));
     }
   };
 
@@ -642,6 +689,26 @@ const KafkaToolComponent: React.FC = () => {
       setProduceError(`Send failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setProduceSending(false);
+    }
+  };
+
+  // Handle refreshing topics list
+  const handleRefreshTopics = async () => {
+    if (!connectedCluster) return;
+
+    setRefreshingTopics(true);
+    try {
+      // Fetch fresh topics list
+      // For now using placeholder - in real implementation would call admin API
+      const topics = ['__consumer_offsets', 'devkit-test', 'orders', 'payments', 'users', 'logs'];
+
+      setClusters(clusters.map(c =>
+        c.id === connectedCluster.id ? { ...c, topics } : c
+      ));
+    } catch (error) {
+      console.error('Failed to refresh topics:', error);
+    } finally {
+      setRefreshingTopics(false);
     }
   };
 
@@ -1033,6 +1100,51 @@ const KafkaToolComponent: React.FC = () => {
                           <span style={{ color: '#10b981', fontSize: '12px', fontWeight: 600 }}>✓ 已连接</span>
                         )}
                       </div>
+
+                      {/* Error message display */}
+                      {cluster.error && (
+                        <div style={{
+                          backgroundColor: '#fee2e2',
+                          border: '1px solid #fca5a5',
+                          color: '#dc2626',
+                          padding: '8px 12px',
+                          borderRadius: '4px',
+                          marginBottom: '12px',
+                          fontSize: '12px',
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ margin: '0 0 4px 0', fontWeight: 600 }}>❌ 连接失败</p>
+                              <p style={{ margin: 0, wordBreak: 'break-word' }}>{cluster.error}</p>
+                              {cluster.lastConnectionAttempt && (
+                                <p style={{ margin: '4px 0 0 0', fontSize: '11px', opacity: 0.8 }}>
+                                  {new Date(cluster.lastConnectionAttempt).toLocaleTimeString()}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => {
+                                setClusters(clusters.map(c =>
+                                  c.id === cluster.id ? { ...c, error: undefined } : c
+                                ));
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#dc2626',
+                                cursor: 'pointer',
+                                fontSize: '16px',
+                                marginLeft: '8px',
+                                flexShrink: 0,
+                              }}
+                              title="清除错误信息"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       <div style={{ display: 'flex', gap: '8px' }}>
                         {!cluster.connected ? (
                           <button
@@ -1124,49 +1236,104 @@ const KafkaToolComponent: React.FC = () => {
                   {!selectedTopic ? (
                     // Topic List View
                     <div>
-                      <p style={{ color: styles.status.color, marginBottom: '16px' }}>
-                        找到 {connectedCluster.topics.length} 个 Topics
-                      </p>
-                      <div style={styles.topicGrid}>
-                        {connectedCluster.topics.map((topic) => (
-                          <div
-                            key={topic}
-                            style={styles.topicCard}
-                            onClick={() => {
-                              setSelectedTopic(topic);
-                              handleConsumeTopic(topic);
-                            }}
-                            onMouseOver={(e) => {
-                              Object.assign((e.currentTarget as any).style, styles.topicCardHover);
-                            }}
-                            onMouseOut={(e) => {
-                              (e.currentTarget as any).style.transform = 'translateY(0)';
-                              (e.currentTarget as any).style.boxShadow = 'none';
-                            }}
-                          >
-                            <div style={styles.topicName}>{topic}</div>
-                            <div style={{ fontSize: '12px', color: styles.status.color }}>点击消费消息</div>
-                          </div>
-                        ))}
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          placeholder="搜索 Topic..."
+                          value={topicSearchTerm}
+                          onChange={(e) => setTopicSearchTerm(e.target.value)}
+                          style={{
+                            ...styles.input,
+                            flex: 1,
+                          }}
+                        />
+                        <button
+                          onClick={handleRefreshTopics}
+                          disabled={refreshingTopics}
+                          style={{
+                            ...styles.button,
+                            minWidth: '100px',
+                            ...(refreshingTopics ? styles.buttonDisabled : {}),
+                          }}
+                          title="刷新 Topics 列表"
+                        >
+                          {refreshingTopics ? '刷新中...' : '🔄 刷新'}
+                        </button>
                       </div>
+
+                      {(() => {
+                        const filteredTopics = connectedCluster.topics?.filter(topic =>
+                          topic.toLowerCase().includes(topicSearchTerm.toLowerCase())
+                        ) || [];
+
+                        return (
+                          <>
+                            <p style={{ color: styles.status.color, marginBottom: '16px' }}>
+                              找到 {filteredTopics.length} / {connectedCluster.topics?.length || 0} 个 Topics
+                            </p>
+                            <div style={styles.topicGrid}>
+                              {filteredTopics.map((topic) => (
+                                <div
+                                  key={topic}
+                                  style={styles.topicCard}
+                                  onClick={() => {
+                                    setSelectedTopic(topic);
+                                    handleConsumeTopic(topic);
+                                  }}
+                                  onMouseOver={(e) => {
+                                    Object.assign((e.currentTarget as any).style, styles.topicCardHover);
+                                  }}
+                                  onMouseOut={(e) => {
+                                    (e.currentTarget as any).style.transform = 'translateY(0)';
+                                    (e.currentTarget as any).style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <div style={styles.topicName}>{topic}</div>
+                                  <div style={{ fontSize: '12px', color: styles.status.color }}>点击消费消息</div>
+                                </div>
+                              ))}
+                            </div>
+                            {filteredTopics.length === 0 && topicSearchTerm && (
+                              <div style={styles.emptyMessage}>
+                                未找到匹配的 Topic
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   ) : (
                     // Message List & Detail View
                     <div>
-                      <button
-                        onClick={() => setSelectedTopic(null)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: styles.status.color,
-                          cursor: 'pointer',
-                          marginBottom: '16px',
-                          fontSize: '14px',
-                          fontWeight: 500,
-                        }}
-                      >
-                        ← 返回 Topics
-                      </button>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <button
+                          onClick={() => {
+                            setSelectedTopic(null);
+                            setTopicSearchTerm('');
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: styles.status.color,
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                          }}
+                        >
+                          ← 返回 Topics
+                        </button>
+                        <button
+                          onClick={() => selectedTopic && handleConsumeTopic(selectedTopic)}
+                          disabled={consumeLoading}
+                          style={{
+                            ...styles.button,
+                            ...(consumeLoading ? styles.buttonDisabled : {}),
+                          }}
+                          title="刷新消息"
+                        >
+                          {consumeLoading ? '刷新中...' : '🔄 刷新'}
+                        </button>
+                      </div>
 
                       <div style={styles.card}>
                         <h3 style={{ color: styles.title.color, marginTop: 0, marginBottom: '12px' }}>
