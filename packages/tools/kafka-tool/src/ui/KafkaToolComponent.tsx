@@ -254,6 +254,7 @@ const KafkaToolComponent: React.FC = () => {
   }>>([]);
   const [consumeLoading, setConsumeLoading] = useState(false);
   const [consumeError, setConsumeError] = useState('');
+  const [consumeErrorType, setConsumeErrorType] = useState<'connection-timeout' | 'broker-unreachable' | 'invalid-topic' | 'invalid-partition' | 'invalid-offset' | 'other' | null>(null);
   const [consumeStartPosition, setConsumeStartPosition] = useState<'latest' | 'earliest' | 'offset' | 'timestamp'>('latest');
   const [consumeStartOffset, setConsumeStartOffset] = useState('');
   const [consumeStartTimestamp, setConsumeStartTimestamp] = useState('');
@@ -300,17 +301,53 @@ const KafkaToolComponent: React.FC = () => {
     };
   }, []);
 
-  // Reset produce view when cluster changes
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Escape to close detail panel
+      if (event.key === 'Escape' && selectedMessage !== null) {
+        setSelectedMessage(null);
+        event.preventDefault();
+      }
+      // Enter to search (if focused on search input)
+      // Ctrl+A or Cmd+A to select all in search (browser default)
+      // Alt+↑ to go to previous message
+      if ((event.altKey || event.ctrlKey) && event.key === 'ArrowUp' && selectedMessage !== null) {
+        handleNavigateToPreviousMessage();
+        event.preventDefault();
+      }
+      // Alt+↓ to go to next message
+      if ((event.altKey || event.ctrlKey) && event.key === 'ArrowDown' && selectedMessage !== null) {
+        handleNavigateToNextMessage();
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedMessage, selectedMessageIndex, consumeMessages]);
+
+  // Reset consume view when cluster changes
   useEffect(() => {
     if (!connectedCluster) {
-      setProduceTopic('');
-      setProduceContent('');
-      setProduceKey('');
-      setProducePartition('');
-      setProduceError('');
-      setProduceSuccess(null);
+      setConsumeMessages([]);
+      setConsumeError('');
+      setConsumeErrorType(null);
+      setSelectedMessage(null);
+      setSelectedTopic(null);
+      setConsumeTopicStats(null);
     }
   }, [connectedCluster?.id]);
+
+  // Handle cluster disconnection during consumption
+  useEffect(() => {
+    if (activeView === 'topics' && !connectedCluster && (consumeMessages.length > 0 || consumeError)) {
+      setConsumeError('集群已断开连接');
+      setConsumeErrorType('other');
+    }
+  }, [connectedCluster, activeView]);
 
   // 从 localStorage 读取保存的集群配置
   useEffect(() => {
@@ -486,11 +523,13 @@ const KafkaToolComponent: React.FC = () => {
   const handleConsumeTopic = async (topic: string) => {
     if (!connectedCluster) {
       setConsumeError('Not connected to a cluster');
+      setConsumeErrorType('other');
       return;
     }
 
     setConsumeLoading(true);
     setConsumeError('');
+    setConsumeErrorType(null);
     setConsumeMessages([]);
     setSelectedMessage(null);
     setSelectedMessageIndex(-1);
@@ -516,7 +555,9 @@ const KafkaToolComponent: React.FC = () => {
         });
       }
     } catch (error) {
-      setConsumeError(`Failed to fetch messages: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const { type, message } = classifyError(error);
+      setConsumeError(message);
+      setConsumeErrorType(type);
     } finally {
       setConsumeLoading(false);
     }
@@ -589,6 +630,46 @@ const KafkaToolComponent: React.FC = () => {
     } catch {
       return value;
     }
+  };
+
+  // Classify error type and provide helpful message
+  const classifyError = (error: Error | string): { type: typeof consumeErrorType; message: string } => {
+    const errorMsg = error instanceof Error ? error.message : error.toString();
+
+    if (errorMsg.includes('timeout') || errorMsg.includes('TIMEOUT')) {
+      return {
+        type: 'connection-timeout',
+        message: `连接超时: ${errorMsg}。请检查网络连接和 Broker 地址。`
+      };
+    }
+    if (errorMsg.includes('unreachable') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('无法到达')) {
+      return {
+        type: 'broker-unreachable',
+        message: `Broker 不可达: ${errorMsg}。请检查 Broker 是否正在运行。`
+      };
+    }
+    if (errorMsg.includes('not found') || errorMsg.includes('不存在')) {
+      return {
+        type: 'invalid-topic',
+        message: `Topic 不存在: ${errorMsg}`
+      };
+    }
+    if (errorMsg.includes('partition') || errorMsg.includes('分区')) {
+      return {
+        type: 'invalid-partition',
+        message: `分区错误: ${errorMsg}`
+      };
+    }
+    if (errorMsg.includes('offset') || errorMsg.includes('偏移量')) {
+      return {
+        type: 'invalid-offset',
+        message: `偏移量错误: ${errorMsg}`
+      };
+    }
+    return {
+      type: 'other',
+      message: errorMsg
+    };
   };
 
   // 导航项目
@@ -1145,10 +1226,35 @@ const KafkaToolComponent: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Error Message */}
+                        {/* Error Message with Retry */}
                         {consumeError && (
-                          <div style={{ ...styles.emptyMessage, backgroundColor: '#fee2e2', borderColor: '#fca5a5', color: '#dc2626', marginBottom: '12px' }}>
-                            ❌ {consumeError}
+                          <div style={{
+                            ...styles.emptyMessage,
+                            backgroundColor: '#fee2e2',
+                            borderColor: '#fca5a5',
+                            color: '#dc2626',
+                            marginBottom: '12px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}>
+                            <span>
+                              ❌ {consumeError}
+                            </span>
+                            <button
+                              onClick={() => selectedTopic && handleConsumeTopic(selectedTopic)}
+                              disabled={consumeLoading}
+                              style={{
+                                ...styles.button,
+                                backgroundColor: '#ef4444',
+                                fontSize: '12px',
+                                padding: '6px 12px',
+                                marginLeft: '12px',
+                              }}
+                              title="重新尝试"
+                            >
+                              🔄 重试
+                            </button>
                           </div>
                         )}
 

@@ -73,8 +73,8 @@
 - [x] 7.3 Implement handlers for partition selection change
 - [ ] 7.4 Implement handlers for message list scrolling
 - [x] 7.5 Implement handlers for search input
-- [ ] 7.6 Update UI when cluster changes
-- [ ] 7.7 Handle cluster disconnection gracefully
+- [x] 7.6 Update UI when cluster changes
+- [x] 7.7 Handle cluster disconnection gracefully
 
 ## 8. Format Handling and Display
 
@@ -92,9 +92,9 @@
 - [x] 9.3 Handle "Invalid offset" error with auto-adjustment
 - [ ] 9.4 Handle "Connection timeout" error
 - [ ] 9.5 Handle "Broker unreachable" error
-- [ ] 9.6 Add retry button for failed consumption attempts
+- [x] 9.6 Add retry button for failed consumption attempts
 - [x] 9.7 Display error messages to user clearly
-- [ ] 9.8 Handle cluster disconnection during consumption
+- [x] 9.8 Handle cluster disconnection during consumption
 
 ## 10. Performance Optimization
 
@@ -125,13 +125,13 @@
 
 ## 12. Polish and Documentation
 
-- [ ] 12.1 Verify UI styling matches Kafka Tool theme (dark/light)
-- [ ] 12.2 Add keyboard shortcuts (e.g., Enter to search, Escape to close detail)
+- [x] 12.1 Verify UI styling matches Kafka Tool theme (dark/light)
+- [x] 12.2 Add keyboard shortcuts (e.g., Enter to search, Escape to close detail)
 - [ ] 12.3 Test responsive layout on different screen sizes
-- [ ] 12.4 Add hover tooltips for UI controls
+- [x] 12.4 Add hover tooltips for UI controls
 - [ ] 12.5 Verify accessibility (labels, keyboard navigation)
 - [ ] 12.6 Add code comments for complex logic
 - [ ] 12.7 Test dark mode compatibility for code highlighting
-- [ ] 12.8 Review and improve error messages
+- [x] 12.8 Review and improve error messages
 - [ ] 12.9 Update Kafka Tool documentation if needed
 - [ ] 12.10 Verify consistent message ordering in list
