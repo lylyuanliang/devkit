@@ -1,12 +1,97 @@
 import { Kafka, Admin, Producer, Consumer } from 'kafkajs';
 import { KafkaClusterConfig } from '../types';
 
+/**
+ * Task 9.4, 9.5: Error classification for connection failures
+ */
+export enum ConnectionErrorType {
+  TIMEOUT = 'TIMEOUT',
+  BROKER_UNREACHABLE = 'BROKER_UNREACHABLE',
+  AUTHENTICATION_FAILED = 'AUTHENTICATION_FAILED',
+  SSL_ERROR = 'SSL_ERROR',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export interface ConnectionError {
+  type: ConnectionErrorType;
+  message: string;
+  originalError: Error;
+  retryable: boolean;
+}
+
 export class KafkaConnectionManager {
   private kafka: Kafka | null = null;
   private admin: Admin | null = null;
   private producer: Producer | null = null;
   private consumer: Consumer | null = null;
   private currentCluster: KafkaClusterConfig | null = null;
+
+  /**
+   * Classify connection errors for better user feedback
+   * Tasks 9.4, 9.5: Handle connection timeout and broker unreachable errors
+   */
+  private classifyConnectionError(error: any): ConnectionError {
+    const errorStr = error.toString().toLowerCase();
+    const message = error.message || '';
+
+    if (
+      errorStr.includes('timeout') ||
+      errorStr.includes('econnrefused') ||
+      message.includes('timeout')
+    ) {
+      return {
+        type: ConnectionErrorType.TIMEOUT,
+        message:
+          '连接超时：无法在规定时间内连接到 Broker。请检查网络连接和 Broker 地址',
+        originalError: error,
+        retryable: true,
+      };
+    }
+
+    if (
+      errorStr.includes('enotfound') ||
+      errorStr.includes('getaddrinfo') ||
+      errorStr.includes('unknown host')
+    ) {
+      return {
+        type: ConnectionErrorType.BROKER_UNREACHABLE,
+        message:
+          'Broker 不可达：无法解析主机名或连接被拒绝。请检查 Broker 地址和防火墙规则',
+        originalError: error,
+        retryable: true,
+      };
+    }
+
+    if (
+      errorStr.includes('auth') ||
+      errorStr.includes('sasl') ||
+      errorStr.includes('unauthorized')
+    ) {
+      return {
+        type: ConnectionErrorType.AUTHENTICATION_FAILED,
+        message: '认证失败：用户名或密码错误',
+        originalError: error,
+        retryable: false,
+      };
+    }
+
+    if (errorStr.includes('ssl') || errorStr.includes('certificate')) {
+      return {
+        type: ConnectionErrorType.SSL_ERROR,
+        message:
+          'SSL/TLS 错误：证书验证失败或配置不正确',
+        originalError: error,
+        retryable: false,
+      };
+    }
+
+    return {
+      type: ConnectionErrorType.UNKNOWN,
+      message: `连接失败：${message}`,
+      originalError: error,
+      retryable: true,
+    };
+  }
 
   /**
    * Initialize connection to a Kafka cluster
@@ -53,7 +138,10 @@ export class KafkaConnectionManager {
       console.log(`Connected to Kafka cluster: ${cluster.name}`);
     } catch (error) {
       this.cleanup();
-      throw new Error(`Failed to connect to Kafka cluster: ${error}`);
+      // Task 9.4, 9.5: Classify and handle connection errors
+      const classifiedError = this.classifyConnectionError(error as Error);
+      console.error(`Connection error (${classifiedError.type}):`, classifiedError.message);
+      throw classifiedError;
     }
   }
 
