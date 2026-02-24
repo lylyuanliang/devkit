@@ -50,6 +50,29 @@ export class DatabaseService {
         value JSON NOT NULL,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS kafka_environments (
+        id TEXT PRIMARY KEY,
+        tool_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        host TEXT NOT NULL,
+        brokers TEXT NOT NULL,
+        connection_config JSON,
+        monitoring JSON,
+        description TEXT,
+        tags TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tool_id, name)
+      );
+
+      CREATE TABLE IF NOT EXISTS kafka_active_environment (
+        id TEXT PRIMARY KEY,
+        tool_id TEXT NOT NULL,
+        active_environment_name TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tool_id)
+      );
     `);
   }
 
@@ -248,5 +271,106 @@ export class DatabaseService {
 
   close(): void {
     this.db.close();
+  }
+
+  /**
+   * Save a Kafka environment configuration
+   */
+  saveKafkaEnvironment(toolId: string, env: any): void {
+    const id = `${toolId}-env-${env.name}`;
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO kafka_environments
+      (id, tool_id, name, host, brokers, connection_config, monitoring, description, tags, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `);
+    stmt.run(
+      id,
+      toolId,
+      env.name,
+      env.host,
+      JSON.stringify(env.brokers || []),
+      JSON.stringify(env.connectionConfig || {}),
+      JSON.stringify(env.monitoring || {}),
+      env.description || '',
+      JSON.stringify(env.tags || [])
+    );
+  }
+
+  /**
+   * Load a single Kafka environment configuration
+   */
+  getKafkaEnvironment(toolId: string, environmentName: string): any {
+    const stmt = this.db.prepare(`
+      SELECT * FROM kafka_environments WHERE tool_id = ? AND name = ?
+    `);
+    const result = stmt.get(toolId, environmentName) as any;
+
+    if (!result) return null;
+
+    return {
+      name: result.name,
+      host: result.host,
+      brokers: JSON.parse(result.brokers),
+      connectionConfig: JSON.parse(result.connection_config),
+      monitoring: JSON.parse(result.monitoring),
+      description: result.description,
+      tags: JSON.parse(result.tags),
+      createdAt: result.created_at,
+      updatedAt: result.updated_at,
+    };
+  }
+
+  /**
+   * List all Kafka environments for a tool
+   */
+  listKafkaEnvironments(toolId: string): any[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM kafka_environments WHERE tool_id = ? ORDER BY updated_at DESC
+    `);
+    const results = stmt.all(toolId) as any[];
+
+    return results.map((row) => ({
+      name: row.name,
+      host: row.host,
+      brokers: JSON.parse(row.brokers),
+      connectionConfig: JSON.parse(row.connection_config),
+      monitoring: JSON.parse(row.monitoring),
+      description: row.description,
+      tags: JSON.parse(row.tags),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  }
+
+  /**
+   * Delete a Kafka environment configuration
+   */
+  deleteKafkaEnvironment(toolId: string, environmentName: string): void {
+    const id = `${toolId}-env-${environmentName}`;
+    const stmt = this.db.prepare(`DELETE FROM kafka_environments WHERE id = ?`);
+    stmt.run(id);
+  }
+
+  /**
+   * Update active environment for a tool
+   */
+  setActiveKafkaEnvironment(toolId: string, environmentName: string): void {
+    const id = `${toolId}-active-env`;
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO kafka_active_environment (id, tool_id, active_environment_name, updated_at)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    `);
+    stmt.run(id, toolId, environmentName);
+  }
+
+  /**
+   * Get the active environment for a tool
+   */
+  getActiveKafkaEnvironment(toolId: string): string | null {
+    const stmt = this.db.prepare(`
+      SELECT active_environment_name FROM kafka_active_environment WHERE tool_id = ?
+    `);
+    const result = stmt.get(toolId) as any;
+    return result ? result.active_environment_name : null;
   }
 }
