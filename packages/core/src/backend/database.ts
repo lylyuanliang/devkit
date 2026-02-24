@@ -373,4 +373,48 @@ export class DatabaseService {
     const result = stmt.get(toolId) as any;
     return result ? result.active_environment_name : null;
   }
+
+  /**
+   * Migrate single cluster config to multi-environment format
+   * Wraps existing cluster config in "default" environment
+   */
+  migrateKafkaConfigToEnvironments(toolId: string): void {
+    try {
+      // Check if migration already done
+      const existingEnvs = this.listKafkaEnvironments(toolId);
+      if (existingEnvs && existingEnvs.length > 0) {
+        console.log(`Tool ${toolId} already has environments, skipping migration`);
+        return;
+      }
+
+      // Try to load old single-cluster config
+      const oldConfig = this.getToolConfig(toolId);
+      if (!oldConfig || !oldConfig.brokers) {
+        console.log(`No legacy config found for tool ${toolId}`);
+        return;
+      }
+
+      // Wrap in default environment
+      const defaultEnv = {
+        name: 'default',
+        host: oldConfig.host || 'localhost',
+        brokers: oldConfig.brokers || [],
+        connectionConfig: oldConfig.connectionConfig || {},
+        monitoring: oldConfig.monitoring || {},
+        description: 'Migrated from legacy single-cluster config',
+        tags: ['migrated'],
+      };
+
+      // Save as environment
+      this.saveKafkaEnvironment(toolId, defaultEnv);
+
+      // Set as active
+      this.setActiveKafkaEnvironment(toolId, 'default');
+
+      console.log(`Successfully migrated legacy config for ${toolId} to "default" environment`);
+    } catch (error) {
+      console.error(`Migration failed for ${toolId}:`, error);
+      throw new Error(`Failed to migrate Kafka config: ${error}`);
+    }
+  }
 }

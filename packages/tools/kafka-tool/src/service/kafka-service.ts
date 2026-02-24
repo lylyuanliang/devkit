@@ -6,8 +6,19 @@ import { ConsumerGroupService } from './consumer-group-service';
 import { LagMonitorService } from './lag-monitor-service';
 import { KafkaClusterConfig } from '../types';
 
+interface KafkaEnvironmentConfig {
+  name: string;
+  host: string;
+  brokers: string[];
+  connectionConfig?: any;
+  monitoring?: any;
+  description?: string;
+  tags?: string[];
+}
+
 /**
  * Main Kafka service orchestrating all sub-services
+ * Supports multiple environments with connection switching
  */
 export class KafkaService {
   private connectionManager: KafkaConnectionManager;
@@ -17,12 +28,108 @@ export class KafkaService {
   private consumerGroupService: ConsumerGroupService | null = null;
   private lagMonitorService: LagMonitorService | null = null;
 
+  // Multi-environment support
+  private environments: Map<string, KafkaEnvironmentConfig> = new Map();
+  private activeEnvironment: string | null = null;
+
   constructor() {
     this.connectionManager = new KafkaConnectionManager();
   }
 
   /**
-   * Connect to a Kafka cluster
+   * Load all environments from database (Task 2.2)
+   */
+  async loadEnvironments(envConfigs: KafkaEnvironmentConfig[]): Promise<void> {
+    this.environments.clear();
+    for (const env of envConfigs) {
+      this.environments.set(env.name, env);
+    }
+  }
+
+  /**
+   * Get a single environment configuration (Task 2.3)
+   */
+  getEnvironment(name: string): KafkaEnvironmentConfig | null {
+    return this.environments.get(name) || null;
+  }
+
+  /**
+   * Switch to a different environment (Task 2.4)
+   * Handles disconnect old -> connect new -> emit events
+   */
+  async switchEnvironment(name: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const environment = this.environments.get(name);
+      if (!environment) {
+        return { success: false, error: `Environment "${name}" not found` };
+      }
+
+      // Emit switching event
+      const oldEnv = this.activeEnvironment;
+      console.log(`Switching from ${oldEnv} to ${name}`);
+
+      // Disconnect old environment
+      if (this.activeEnvironment && this.activeEnvironment !== name) {
+        await this.disconnectEnvironment(this.activeEnvironment);
+      }
+
+      // Connect new environment
+      await this.createConnection(environment);
+      this.activeEnvironment = name;
+
+      console.log(`Successfully switched to environment: ${name}`);
+      return { success: true };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to switch environment: ${errorMsg}`);
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  /**
+   * Create connection to an environment (Task 2.5)
+   */
+  private async createConnection(environment: KafkaEnvironmentConfig): Promise<void> {
+    const clusterConfig: KafkaClusterConfig = {
+      brokers: environment.brokers,
+      host: environment.host,
+    };
+
+    await this.connectionManager.connect(clusterConfig);
+
+    // Initialize services
+    const admin = this.connectionManager.getAdmin();
+    this.adminService = new KafkaAdminService(admin);
+    this.consumerGroupService = new ConsumerGroupService(admin);
+    this.lagMonitorService = new LagMonitorService(admin);
+  }
+
+  /**
+   * Disconnect from an environment (Task 2.6)
+   */
+  private async disconnectEnvironment(name: string): Promise<void> {
+    try {
+      // Cleanup consumer services
+      for (const consumer of this.consumerServices.values()) {
+        await consumer.stop();
+      }
+      this.consumerServices.clear();
+
+      await this.connectionManager.disconnect();
+
+      this.adminService = null;
+      this.producerService = null;
+      this.consumerGroupService = null;
+      this.lagMonitorService = null;
+
+      console.log(`Disconnected from environment: ${name}`);
+    } catch (error) {
+      console.error(`Error disconnecting from ${name}:`, error);
+    }
+  }
+
+  /**
+   * Connect to a Kafka cluster (legacy single-connection)
    */
   async connect(cluster: KafkaClusterConfig, password?: string): Promise<void> {
     await this.connectionManager.connect(cluster, password);
@@ -38,18 +145,9 @@ export class KafkaService {
    * Disconnect from the current cluster
    */
   async disconnect(): Promise<void> {
-    // Cleanup consumer services
-    for (const consumer of this.consumerServices.values()) {
-      await consumer.stop();
+    if (this.activeEnvironment) {
+      await this.disconnectEnvironment(this.activeEnvironment);
     }
-    this.consumerServices.clear();
-
-    await this.connectionManager.disconnect();
-
-    this.adminService = null;
-    this.producerService = null;
-    this.consumerGroupService = null;
-    this.lagMonitorService = null;
   }
 
   /**
@@ -120,9 +218,24 @@ export class KafkaService {
   }
 
   /**
+   * Get active environment name
+   */
+  getActiveEnvironment(): string | null {
+    return this.activeEnvironment;
+  }
+
+  /**
+   * List all available environments
+   */
+  listEnvironments(): KafkaEnvironmentConfig[] {
+    return Array.from(this.environments.values());
+  }
+
+  /**
    * Clean up all resources
    */
   async cleanup(): Promise<void> {
     await this.disconnect();
+    this.environments.clear();
   }
 }
