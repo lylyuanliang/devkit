@@ -40,7 +40,6 @@ const validateJSON = (content: string): { valid: boolean; error?: string } => {
 };
 
 export const KafkaToolComponent: React.FC = () => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [connectedCluster, setConnectedCluster] = useState<Cluster | null>(null);
   const [activeView, setActiveView] = useState<'clusters' | 'topics' | 'consumer-groups' | 'produce'>('clusters');
@@ -58,15 +57,6 @@ export const KafkaToolComponent: React.FC = () => {
       }
     }
   }, []);
-
-  // Apply dark mode
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
 
   const handleConnectCluster = async (cluster: Cluster) => {
     setLoading(true);
@@ -88,10 +78,7 @@ export const KafkaToolComponent: React.FC = () => {
   };
 
   return (
-    <div className={cn(
-      'w-full h-full flex flex-col transition-colors',
-      isDarkMode ? 'dark bg-slate-950' : 'bg-gray-50'
-    )}>
+    <div className="w-full h-full flex flex-col bg-gray-50 dark:bg-slate-950 transition-colors">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
         <div>
@@ -102,12 +89,6 @@ export const KafkaToolComponent: React.FC = () => {
             </p>
           )}
         </div>
-        <button
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          className="px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-        >
-          {isDarkMode ? '☀️ Light' : '🌙 Dark'}
-        </button>
       </header>
 
       {/* Main Container */}
@@ -184,9 +165,9 @@ export const KafkaToolComponent: React.FC = () => {
           {/* Clusters View */}
           {activeView === 'clusters' && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Clusters</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Clusters</h2>
               {clusters.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {clusters.map((cluster) => (
                     <div
                       key={cluster.id}
@@ -195,7 +176,7 @@ export const KafkaToolComponent: React.FC = () => {
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                         {cluster.name}
                       </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 break-words">
                         {cluster.brokers.join(', ')}
                       </p>
                       <button
@@ -219,7 +200,7 @@ export const KafkaToolComponent: React.FC = () => {
           {/* Topics View */}
           {activeView === 'topics' && connectedCluster && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Topics</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Topics</h2>
               <p className="text-gray-600 dark:text-gray-400">Topics view coming soon...</p>
             </div>
           )}
@@ -227,7 +208,7 @@ export const KafkaToolComponent: React.FC = () => {
           {/* Consumer Groups View */}
           {activeView === 'consumer-groups' && connectedCluster && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Consumer Groups</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Consumer Groups</h2>
               <ConsumerGroupsView clusterId={connectedCluster.id} styles={{}} />
             </div>
           )}
@@ -235,7 +216,7 @@ export const KafkaToolComponent: React.FC = () => {
           {/* Produce View */}
           {activeView === 'produce' && connectedCluster && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Produce Message</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Produce Message</h2>
               <p className="text-gray-600 dark:text-gray-400">Produce view coming soon...</p>
             </div>
           )}

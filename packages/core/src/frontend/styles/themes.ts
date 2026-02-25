@@ -134,4 +134,11 @@ export const applyTheme = (theme: Theme): void => {
 
   // Set data attribute for CSS selectors
   root.setAttribute('data-theme', theme.id);
+
+  // Set dark class for Tailwind CSS dark mode support
+  if (theme.id === 'dark') {
+    root.classList.add('dark');
+  } else {
+    root.classList.remove('dark');
+  }
 };
