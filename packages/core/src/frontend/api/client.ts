@@ -1,4 +1,5 @@
 import { ToolConfig, ToolStatus } from '@devkit/shared';
+import { ConsumerGroup, ConsumerGroupDetails, PartitionOffset, ResetOffsetsRequest } from '../../types/consumer-groups';
 
 // 通过 window.__TAURI__ 访问 invoke，避免 import 问题
 const getInvoke = () => {
@@ -60,5 +61,36 @@ export const apiClient = {
     const invoke = getInvoke();
     if (!invoke) return Promise.resolve();
     return invoke('save_app_state', { state });
+  },
+
+  // Consumer Groups API
+  async listConsumerGroups(clusterId: string): Promise<ConsumerGroup[]> {
+    const invoke = getInvoke();
+    if (!invoke) return [];
+    return invoke('kafka_list_consumer_groups', { cluster_id: clusterId });
+  },
+
+  async getConsumerGroupDetails(clusterId: string, groupId: string): Promise<ConsumerGroupDetails> {
+    const invoke = getInvoke();
+    if (!invoke) throw new Error('Tauri not available');
+    return invoke('kafka_get_consumer_group_details', { cluster_id: clusterId, group_id: groupId });
+  },
+
+  async getConsumerGroupLag(clusterId: string, groupId: string): Promise<PartitionOffset[]> {
+    const invoke = getInvoke();
+    if (!invoke) return [];
+    return invoke('kafka_get_consumer_group_lag', { cluster_id: clusterId, group_id: groupId });
+  },
+
+  async deleteConsumerGroup(clusterId: string, groupId: string): Promise<void> {
+    const invoke = getInvoke();
+    if (!invoke) return Promise.resolve();
+    return invoke('kafka_delete_consumer_group', { cluster_id: clusterId, group_id: groupId });
+  },
+
+  async resetConsumerGroupOffsets(clusterId: string, request: ResetOffsetsRequest): Promise<PartitionOffset[]> {
+    const invoke = getInvoke();
+    if (!invoke) return [];
+    return invoke('kafka_reset_consumer_group_offsets', { cluster_id: clusterId, request });
   },
 };

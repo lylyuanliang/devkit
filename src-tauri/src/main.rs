@@ -5,7 +5,9 @@ mod kafka;
 use serde::{Deserialize, Serialize};
 use kafka::{
     connect_cluster, disconnect_cluster, produce_message, consume_messages,
-    ProduceMessageRequest, ConsumeMessagesRequest,
+    list_consumer_groups, get_consumer_group_details, get_consumer_group_lag,
+    delete_consumer_group, reset_consumer_group_offsets,
+    ProduceMessageRequest, ConsumeMessagesRequest, ResetOffsetsRequest,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -74,6 +76,40 @@ fn kafka_consume_messages(
     consume_messages(cluster_id, request)
 }
 
+#[tauri::command]
+fn kafka_list_consumer_groups(cluster_id: String) -> Result<Vec<kafka::ConsumerGroup>, String> {
+    list_consumer_groups(cluster_id)
+}
+
+#[tauri::command]
+fn kafka_get_consumer_group_details(
+    cluster_id: String,
+    group_id: String,
+) -> Result<kafka::ConsumerGroupDetails, String> {
+    get_consumer_group_details(cluster_id, group_id)
+}
+
+#[tauri::command]
+fn kafka_get_consumer_group_lag(
+    cluster_id: String,
+    group_id: String,
+) -> Result<Vec<kafka::PartitionOffset>, String> {
+    get_consumer_group_lag(cluster_id, group_id)
+}
+
+#[tauri::command]
+fn kafka_delete_consumer_group(cluster_id: String, group_id: String) -> Result<(), String> {
+    delete_consumer_group(cluster_id, group_id)
+}
+
+#[tauri::command]
+fn kafka_reset_consumer_group_offsets(
+    cluster_id: String,
+    request: ResetOffsetsRequest,
+) -> Result<Vec<kafka::PartitionOffset>, String> {
+    reset_consumer_group_offsets(cluster_id, request)
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
@@ -85,6 +121,11 @@ fn main() {
             kafka_disconnect,
             kafka_produce_message,
             kafka_consume_messages,
+            kafka_list_consumer_groups,
+            kafka_get_consumer_group_details,
+            kafka_get_consumer_group_lag,
+            kafka_delete_consumer_group,
+            kafka_reset_consumer_group_offsets,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

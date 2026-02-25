@@ -270,6 +270,18 @@ export class KafkaAPI {
   }
 
   /**
+   * List all consumer groups via Tauri IPC
+   */
+  static async listConsumerGroups(clusterId: string): Promise<string[]> {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return await invoke<string[]>('kafka_list_consumer_groups', { clusterId });
+    } catch (error) {
+      throw new Error(`Failed to list consumer groups: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Format hex string with spaces
    */
   static formatHex(hex: string, groupSize: number = 16): string {

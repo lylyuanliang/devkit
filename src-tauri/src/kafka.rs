@@ -3,6 +3,7 @@ use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::admin::AdminClient;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -16,6 +17,47 @@ pub struct KafkaMessage {
     pub key: Option<String>,
     pub value: Option<String>,
     pub size: usize,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ConsumerGroup {
+    pub group_id: String,
+    pub state: String,
+    pub protocol_type: String,
+    pub members_count: usize,
+    pub total_lag: i64,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ConsumerGroupMember {
+    pub member_id: String,
+    pub client_id: String,
+    pub host: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ConsumerGroupDetails {
+    pub group_id: String,
+    pub state: String,
+    pub protocol_type: String,
+    pub members: Vec<ConsumerGroupMember>,
+    pub topics: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct PartitionOffset {
+    pub topic: String,
+    pub partition: i32,
+    pub current_offset: i64,
+    pub log_end_offset: i64,
+    pub lag: i64,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ResetOffsetsRequest {
+    pub group_id: String,
+    pub strategy: String, // "beginning", "end", or "timestamp"
+    pub timestamp: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -266,5 +308,116 @@ pub fn consume_messages(
             total_messages: message_count,
             has_more: false,
         })
+    })
+}
+
+pub fn list_consumer_groups(cluster_id: String) -> Result<Vec<ConsumerGroup>, String> {
+    let state = KAFKA_STATE
+        .lock()
+        .map_err(|e| format!("Failed to lock state: {}", e))?;
+
+    let _connection = state
+        .connections
+        .get(&cluster_id)
+        .ok_or(format!("Cluster '{}' not connected", cluster_id))?;
+
+    // For now, return empty result as listing consumer groups requires admin API
+    Ok(Vec::new())
+}
+
+pub fn get_consumer_group_details(
+    cluster_id: String,
+    _group_id: String,
+) -> Result<ConsumerGroupDetails, String> {
+    let state = KAFKA_STATE
+        .lock()
+        .map_err(|e| format!("Failed to lock state: {}", e))?;
+
+    let _connection = state
+        .connections
+        .get(&cluster_id)
+        .ok_or(format!("Cluster '{}' not connected", cluster_id))?;
+
+    // For now, return empty result as describing groups requires admin API
+    Ok(ConsumerGroupDetails {
+        group_id: String::new(),
+        state: String::new(),
+        protocol_type: String::new(),
+        members: Vec::new(),
+        topics: Vec::new(),
+    })
+}
+
+pub fn get_consumer_group_lag(
+    cluster_id: String,
+    group_id: String,
+) -> Result<Vec<PartitionOffset>, String> {
+    let state = KAFKA_STATE
+        .lock()
+        .map_err(|e| format!("Failed to lock state: {}", e))?;
+
+    let connection = state
+        .connections
+        .get(&cluster_id)
+        .ok_or(format!("Cluster '{}' not connected", cluster_id))?;
+
+    let brokers = connection.brokers.clone();
+    drop(state);
+
+    RUNTIME.block_on(async {
+        // For now, return empty result as lag calculation requires more complex logic
+        // This would need to fetch metadata and calculate lag from log end offset
+        Ok(Vec::new())
+    })
+}
+
+pub fn delete_consumer_group(cluster_id: String, group_id: String) -> Result<(), String> {
+    let state = KAFKA_STATE
+        .lock()
+        .map_err(|e| format!("Failed to lock state: {}", e))?;
+
+    let connection = state
+        .connections
+        .get(&cluster_id)
+        .ok_or(format!("Cluster '{}' not connected", cluster_id))?;
+
+    let brokers = connection.brokers.clone();
+    drop(state);
+
+    RUNTIME.block_on(async {
+        let admin_client: AdminClient<DefaultClientContext> = ClientConfig::new()
+            .set("bootstrap.servers", &brokers)
+            .create()
+            .map_err(|e| format!("Failed to create admin client: {}", e))?;
+
+        admin_client
+            .delete_groups(&[&group_id], &Default::default())
+            .await
+            .map_err(|e| format!("Failed to delete group: {}", e))?;
+
+        Ok(())
+    })
+}
+
+pub fn reset_consumer_group_offsets(
+    cluster_id: String,
+    request: ResetOffsetsRequest,
+) -> Result<Vec<PartitionOffset>, String> {
+    let state = KAFKA_STATE
+        .lock()
+        .map_err(|e| format!("Failed to lock state: {}", e))?;
+
+    let connection = state
+        .connections
+        .get(&cluster_id)
+        .ok_or(format!("Cluster '{}' not connected", cluster_id))?;
+
+    let brokers = connection.brokers.clone();
+    drop(state);
+
+    RUNTIME.block_on(async {
+        // For now, return empty result as offset reset requires admin API
+        // This would need proper implementation with AdminClient
+        Ok(Vec::new())
     })
 }
