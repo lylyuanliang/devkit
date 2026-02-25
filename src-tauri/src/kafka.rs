@@ -68,26 +68,53 @@ lazy_static::lazy_static! {
 
 pub fn connect_cluster(cluster_id: String, brokers: Vec<String>) -> Result<(), String> {
     let brokers_str = brokers.join(",");
+    println!("Attempting to connect to brokers: {}", brokers_str);
 
-    // Create producer
+    // First, do a simple TCP connection test to verify broker is reachable
+    let first_broker = brokers.first().ok_or("No brokers provided")?;
+    let broker_parts: Vec<&str> = first_broker.split(':').collect();
+    let host = broker_parts.get(0).ok_or("Invalid broker format")?;
+    let port_str = broker_parts.get(1).ok_or("Invalid broker format")?;
+    let port: u16 = port_str.parse().map_err(|_| "Invalid port number")?;
+
+    println!("Testing TCP connection to {}:{}", host, port);
+    match std::net::TcpStream::connect((host.to_string(), port)) {
+        Ok(_) => println!("✓ TCP connection successful"),
+        Err(e) => {
+            let err_msg = format!("Failed to connect to broker {}:{}: {}", host, port, e);
+            println!("{}", err_msg);
+            return Err(err_msg);
+        }
+    }
+
+    // Create producer (non-blocking, connection happens lazily)
     let producer: FutureProducer = ClientConfig::new()
         .set("bootstrap.servers", &brokers_str)
         .set("client.id", "devkit-producer")
+        .set("socket.timeout.ms", "5000")
+        .set("connections.max.idle.ms", "5000")
         .create()
-        .map_err(|e| format!("Failed to create producer: {}", e))?;
+        .map_err(|e| {
+            let err_msg = format!("Failed to create producer: {}", e);
+            println!("{}", err_msg);
+            err_msg
+        })?;
+
+    println!("Producer created successfully");
 
     let mut state = KAFKA_STATE
         .lock()
         .map_err(|e| format!("Failed to lock state: {}", e))?;
 
     state.connections.insert(
-        cluster_id,
+        cluster_id.clone(),
         KafkaConnection {
             producer,
             brokers: brokers_str,
         },
     );
 
+    println!("Successfully connected to cluster: {}", cluster_id);
     Ok(())
 }
 
