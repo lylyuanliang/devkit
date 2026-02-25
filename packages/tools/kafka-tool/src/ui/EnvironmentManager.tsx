@@ -252,75 +252,90 @@ export const EnvironmentManager: React.FC<EnvironmentManagerProps> = ({
 
       {/* Environments List */}
       <div style={{ display: 'grid', gap: '12px' }}>
-        {environments.map((env) => (
-          <div
-            key={env.name}
-            style={{
-              border: '1px solid #e5e7eb',
-              borderRadius: '6px',
-              padding: '12px',
-              backgroundColor: '#fff',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-              <div>
-                <h4 style={{ margin: '0 0 8px 0' }}>{env.name}</h4>
-                {env.description && (
-                  <p style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#6b7280' }}>
-                    {env.description}
+        {environments.length === 0 ? (
+          <div style={{
+            padding: '16px',
+            backgroundColor: '#f3f4f6',
+            borderRadius: '6px',
+            textAlign: 'center',
+            color: '#6b7280',
+          }}>
+            <p>暂无环境配置</p>
+            <p style={{ fontSize: '12px', margin: '8px 0 0 0' }}>
+              在集群管理中连接集群后，会自动创建环境
+            </p>
+          </div>
+        ) : (
+          environments.map((env) => (
+            <div
+              key={env.name}
+              style={{
+                border: '1px solid #e5e7eb',
+                borderRadius: '6px',
+                padding: '12px',
+                backgroundColor: '#fff',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                <div>
+                  <h4 style={{ margin: '0 0 8px 0' }}>{env.name}</h4>
+                  {env.description && (
+                    <p style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#6b7280' }}>
+                      {env.description}
+                    </p>
+                  )}
+                  <p style={{ margin: '0', fontSize: '12px', color: '#9ca3af' }}>
+                    {env.host} • {env.brokers.length} broker(s)
                   </p>
-                )}
-                <p style={{ margin: '0', fontSize: '12px', color: '#9ca3af' }}>
-                  {env.host} • {env.brokers.length} broker(s)
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => startEdit(env)}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                  }}
-                >
-                  编辑
-                </button>
-                <button
-                  onClick={() => handleDuplicate(env.name)}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: '#8b5cf6',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                  }}
-                >
-                  复制
-                </button>
-                <button
-                  onClick={() => handleDelete(env.name)}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: '#ef4444',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                  }}
-                >
-                  删除
-                </button>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => startEdit(env)}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: '#3b82f6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                    }}
+                  >
+                    编辑
+                  </button>
+                  <button
+                    onClick={() => handleDuplicate(env.name)}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: '#8b5cf6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                    }}
+                  >
+                    复制
+                  </button>
+                  <button
+                    onClick={() => handleDelete(env.name)}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: '#ef4444',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                    }}
+                  >
+                    删除
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
