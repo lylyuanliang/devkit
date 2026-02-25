@@ -3,8 +3,7 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
-    "./packages/**/*.{js,ts,jsx,tsx}",
-    "../tools/**/*.{js,ts,jsx,tsx}",
+    "../tools/kafka-tool/src/**/*.{js,ts,jsx,tsx}",
     "../shared/**/*.{js,ts,jsx,tsx}",
   ],
   darkMode: ['selector', '.dark'],
