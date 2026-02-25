@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { KafkaAPI } from '../service/kafka-api';
-import EnvironmentPanel from './EnvironmentPanel';
 
 interface Cluster {
   id: string;
@@ -226,7 +225,7 @@ const createThemeStyles = (isDarkMode: boolean) => {
 };
 
 const KafkaToolComponent: React.FC = () => {
-  const [activeView, setActiveView] = useState<'clusters' | 'topics' | 'consumer-groups' | 'produce' | 'monitoring' | 'environments' | 'settings'>('clusters');
+  const [activeView, setActiveView] = useState<'clusters' | 'topics' | 'consumer-groups' | 'produce' | 'monitoring' | 'settings'>('clusters');
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [newClusterName, setNewClusterName] = useState('');
   const [newClusterBrokers, setNewClusterBrokers] = useState('');
@@ -950,7 +949,6 @@ const KafkaToolComponent: React.FC = () => {
     { id: 'topics', label: '📚 Topics', icon: '📚' },
     { id: 'consumer-groups', label: '👥 消费者组', icon: '👥' },
     { id: 'produce', label: '📤 生产消息', icon: '📤' },
-    { id: 'environments', label: '🔌 环境管理', icon: '🔌' },
     { id: 'monitoring', label: '📊 监控', icon: '📊' },
     { id: 'settings', label: '⚙️ 设置', icon: '⚙️' },
   ];
@@ -1298,6 +1296,70 @@ const KafkaToolComponent: React.FC = () => {
                 >
                   ➕ 添加集群
                 </button>
+              </div>
+
+              {/* 环境管理部分 */}
+              <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: `1px solid ${styles.border}` }}>
+                <h3 style={{ color: styles.title.color, marginBottom: '16px' }}>📋 环境列表</h3>
+                <p style={{ color: styles.status.color, fontSize: '13px', marginBottom: '16px' }}>
+                  环境会在连接集群时自动创建。下面显示所有已保存的环境：
+                </p>
+
+                {environments.length === 0 ? (
+                  <div style={{
+                    ...styles.card,
+                    textAlign: 'center',
+                    color: styles.status.color,
+                  }}>
+                    <p style={{ margin: 0 }}>暂无环境</p>
+                    <p style={{ margin: '8px 0 0 0', fontSize: '12px' }}>在上方连接集群后会自动创建环境</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gap: '12px' }}>
+                    {environments.map((env) => {
+                      const matchingCluster = clusters.find(c => c.name === env.name);
+                      return (
+                        <div
+                          key={env.name}
+                          style={{
+                            ...styles.card,
+                            borderLeft: matchingCluster?.connected ? '4px solid #10b981' : '4px solid #d1d5db',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
+                            <div>
+                              <h4 style={{ color: styles.title.color, margin: 0, marginBottom: '4px' }}>
+                                {env.name}
+                                {matchingCluster?.connected && (
+                                  <span style={{ color: '#10b981', fontSize: '12px', fontWeight: 600, marginLeft: '8px' }}>✓ 已连接</span>
+                                )}
+                              </h4>
+                              <p style={{ color: styles.status.color, margin: 0, fontSize: '13px' }}>
+                                {env.host} • {env.brokers.length} broker(s)
+                              </p>
+                              {env.description && (
+                                <p style={{ color: styles.status.color, margin: '4px 0 0 0', fontSize: '12px' }}>
+                                  {env.description}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleDeleteEnvironment(env.name)}
+                              style={{
+                                ...styles.button,
+                                backgroundColor: '#ef4444',
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                              }}
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2144,20 +2206,6 @@ const KafkaToolComponent: React.FC = () => {
           )}
 
           {/* 环境管理 */}
-          {activeView === 'environments' && (
-            <EnvironmentPanel
-              environments={environments}
-              activeEnvironment={activeEnvironment}
-              isLoading={environmentLoading}
-              onSwitch={handleSwitchEnvironment}
-              onAdd={handleAddEnvironment}
-              onEdit={handleEditEnvironment}
-              onDelete={handleDeleteEnvironment}
-              onDuplicate={handleDuplicateEnvironment}
-              error={environmentError}
-            />
-          )}
-
           {/* 设置 */}
           {activeView === 'settings' && (
             <div>
