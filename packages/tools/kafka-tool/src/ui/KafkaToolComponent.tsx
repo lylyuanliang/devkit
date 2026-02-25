@@ -7,8 +7,22 @@ interface Cluster {
   brokers: string[];
   connected?: boolean;
   topics?: string[];
-  error?: string;  // Error message from last connection attempt
-  lastConnectionAttempt?: number;  // Timestamp of last attempt
+  error?: string;
+  lastConnectionAttempt?: number;
+  // 认证配置
+  authType?: 'none' | 'sasl-plain' | 'sasl-scram' | 'ssl';
+  username?: string;
+  password?: string;
+  // SSL 配置
+  sslEnabled?: boolean;
+  sslCertPath?: string;
+  sslKeyPath?: string;
+  sslCaPath?: string;
+  // 其他配置
+  description?: string;
+  tags?: string[];
+  connectionTimeout?: number; // 毫秒
+  requestTimeout?: number; // 毫秒
 }
 
 interface KafkaEnvironmentConfig {
@@ -229,6 +243,19 @@ const KafkaToolComponent: React.FC = () => {
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [newClusterName, setNewClusterName] = useState('');
   const [newClusterBrokers, setNewClusterBrokers] = useState('');
+  const [editingClusterId, setEditingClusterId] = useState<string | null>(null);
+  const [showClusterForm, setShowClusterForm] = useState(false);
+  const [clusterFormData, setClusterFormData] = useState({
+    name: '',
+    brokers: '',
+    authType: 'none' as 'none' | 'sasl-plain' | 'sasl-scram' | 'ssl',
+    username: '',
+    password: '',
+    sslEnabled: false,
+    description: '',
+    connectionTimeout: 30000,
+    requestTimeout: 30000,
+  });
   const [connecting, setConnecting] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
@@ -444,23 +471,88 @@ const KafkaToolComponent: React.FC = () => {
   // 根据主题动态生成样式
   const styles = createThemeStyles(isDarkMode);
 
-  const handleAddCluster = () => {
-    if (newClusterName.trim() && newClusterBrokers.trim()) {
+  const handleSaveCluster = () => {
+    if (!clusterFormData.name.trim() || !clusterFormData.brokers.trim()) {
+      alert('请填写集群名称和 Broker 地址');
+      return;
+    }
+
+    const brokers = clusterFormData.brokers.split(',').map(b => b.trim());
+
+    if (editingClusterId) {
+      // 编辑现有集群
+      const updatedClusters = clusters.map(c =>
+        c.id === editingClusterId ? {
+          ...c,
+          name: clusterFormData.name,
+          brokers,
+          authType: clusterFormData.authType,
+          username: clusterFormData.username,
+          password: clusterFormData.password,
+          sslEnabled: clusterFormData.sslEnabled,
+          description: clusterFormData.description,
+          connectionTimeout: clusterFormData.connectionTimeout,
+          requestTimeout: clusterFormData.requestTimeout,
+        } : c
+      );
+      setClusters(updatedClusters);
+      localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
+    } else {
+      // 创建新集群
       const newCluster: Cluster = {
         id: Date.now().toString(),
-        name: newClusterName,
-        brokers: newClusterBrokers.split(',').map(b => b.trim()),
+        name: clusterFormData.name,
+        brokers,
         connected: false,
         topics: [],
         error: undefined,
         lastConnectionAttempt: undefined,
+        authType: clusterFormData.authType,
+        username: clusterFormData.username,
+        password: clusterFormData.password,
+        sslEnabled: clusterFormData.sslEnabled,
+        description: clusterFormData.description,
+        connectionTimeout: clusterFormData.connectionTimeout,
+        requestTimeout: clusterFormData.requestTimeout,
       };
       const updatedClusters = [...clusters, newCluster];
       setClusters(updatedClusters);
       localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
-      setNewClusterName('');
-      setNewClusterBrokers('');
     }
+
+    resetClusterForm();
+    setShowClusterForm(false);
+  };
+
+  const resetClusterForm = () => {
+    setClusterFormData({
+      name: '',
+      brokers: '',
+      authType: 'none',
+      username: '',
+      password: '',
+      sslEnabled: false,
+      description: '',
+      connectionTimeout: 30000,
+      requestTimeout: 30000,
+    });
+    setEditingClusterId(null);
+  };
+
+  const startEditCluster = (cluster: Cluster) => {
+    setClusterFormData({
+      name: cluster.name,
+      brokers: cluster.brokers.join(', '),
+      authType: cluster.authType || 'none',
+      username: cluster.username || '',
+      password: cluster.password || '',
+      sslEnabled: cluster.sslEnabled || false,
+      description: cluster.description || '',
+      connectionTimeout: cluster.connectionTimeout || 30000,
+      requestTimeout: cluster.requestTimeout || 30000,
+    });
+    setEditingClusterId(cluster.id);
+    setShowClusterForm(true);
   };
 
   const handleConnectCluster = async (clusterId: string) => {
@@ -1248,11 +1340,22 @@ const KafkaToolComponent: React.FC = () => {
                           </button>
                         )}
                         <button
+                          onClick={() => startEditCluster(cluster)}
+                          style={{
+                            ...styles.button,
+                            backgroundColor: '#3b82f6',
+                          }}
+                          title="编辑集群"
+                        >
+                          ✏️
+                        </button>
+                        <button
                           onClick={() => handleDeleteCluster(cluster.id)}
                           style={{
                             ...styles.button,
                             backgroundColor: '#ef4444',
                           }}
+                          title="删除集群"
                         >
                           🗑️
                         </button>
@@ -1262,102 +1365,181 @@ const KafkaToolComponent: React.FC = () => {
                 </div>
               )}
 
-              {/* Add Cluster Form */}
-              <div style={styles.card}>
-                <h3 style={{ color: styles.title.color, marginTop: 0 }}>添加新集群</h3>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>集群名称</label>
-                  <input
-                    type="text"
-                    placeholder="例如：Local Dev"
-                    value={newClusterName}
-                    onChange={(e) => setNewClusterName(e.target.value)}
-                    style={styles.input}
-                  />
+              {/* Cluster Form - Add/Edit */}
+              <div style={{ marginTop: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ color: styles.title.color, margin: 0 }}>
+                    {showClusterForm ? (editingClusterId ? '编辑集群' : '添加新集群') : ''}
+                  </h3>
+                  {!showClusterForm && (
+                    <button
+                      onClick={() => {
+                        resetClusterForm();
+                        setShowClusterForm(true);
+                      }}
+                      style={{
+                        ...styles.button,
+                        padding: '8px 16px',
+                      }}
+                    >
+                      ➕ 添加集群
+                    </button>
+                  )}
                 </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Broker 地址（逗号分隔）</label>
-                  <input
-                    type="text"
-                    placeholder="例如：localhost:9092"
-                    value={newClusterBrokers}
-                    onChange={(e) => setNewClusterBrokers(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-                <button
-                  onClick={handleAddCluster}
-                  disabled={!newClusterName.trim() || !newClusterBrokers.trim()}
-                  style={{
-                    ...styles.button,
-                    width: '100%',
-                    ...((!newClusterName.trim() || !newClusterBrokers.trim()) ? styles.buttonDisabled : {}),
-                  }}
-                >
-                  ➕ 添加集群
-                </button>
-              </div>
 
-              {/* 环境管理部分 */}
-              <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: `1px solid ${styles.border}` }}>
-                <h3 style={{ color: styles.title.color, marginBottom: '16px' }}>📋 环境列表</h3>
-                <p style={{ color: styles.status.color, fontSize: '13px', marginBottom: '16px' }}>
-                  环境会在连接集群时自动创建。下面显示所有已保存的环境：
-                </p>
-
-                {environments.length === 0 ? (
+                {showClusterForm && (
                   <div style={{
                     ...styles.card,
-                    textAlign: 'center',
-                    color: styles.status.color,
+                    backgroundColor: '#f9fafb',
                   }}>
-                    <p style={{ margin: 0 }}>暂无环境</p>
-                    <p style={{ margin: '8px 0 0 0', fontSize: '12px' }}>在上方连接集群后会自动创建环境</p>
-                  </div>
-                ) : (
-                  <div style={{ display: 'grid', gap: '12px' }}>
-                    {environments.map((env) => {
-                      const matchingCluster = clusters.find(c => c.name === env.name);
-                      return (
-                        <div
-                          key={env.name}
+                    {/* 基础信息 */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <h4 style={{ color: styles.title.color, margin: '0 0 12px 0', fontSize: '14px' }}>基础信息</h4>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>集群名称 *</label>
+                        <input
+                          type="text"
+                          placeholder="例如：本地、开发、生产"
+                          value={clusterFormData.name}
+                          onChange={(e) => setClusterFormData({ ...clusterFormData, name: e.target.value })}
+                          style={styles.input}
+                        />
+                      </div>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>Broker 地址（逗号分隔）*</label>
+                        <input
+                          type="text"
+                          placeholder="例如：localhost:9092, broker2:9092"
+                          value={clusterFormData.brokers}
+                          onChange={(e) => setClusterFormData({ ...clusterFormData, brokers: e.target.value })}
+                          style={styles.input}
+                        />
+                      </div>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>描述</label>
+                        <textarea
+                          placeholder="集群描述（可选）"
+                          value={clusterFormData.description}
+                          onChange={(e) => setClusterFormData({ ...clusterFormData, description: e.target.value })}
                           style={{
-                            ...styles.card,
-                            borderLeft: matchingCluster?.connected ? '4px solid #10b981' : '4px solid #d1d5db',
+                            ...styles.input,
+                            minHeight: '60px',
+                            resize: 'vertical',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 认证配置 */}
+                    <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: `1px solid ${styles.border}` }}>
+                      <h4 style={{ color: styles.title.color, margin: '0 0 12px 0', fontSize: '14px' }}>认证配置</h4>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>认证类型</label>
+                        <select
+                          value={clusterFormData.authType}
+                          onChange={(e) => setClusterFormData({ ...clusterFormData, authType: e.target.value as any })}
+                          style={{
+                            ...styles.input,
+                            cursor: 'pointer',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
-                            <div>
-                              <h4 style={{ color: styles.title.color, margin: 0, marginBottom: '4px' }}>
-                                {env.name}
-                                {matchingCluster?.connected && (
-                                  <span style={{ color: '#10b981', fontSize: '12px', fontWeight: 600, marginLeft: '8px' }}>✓ 已连接</span>
-                                )}
-                              </h4>
-                              <p style={{ color: styles.status.color, margin: 0, fontSize: '13px' }}>
-                                {env.host} • {env.brokers.length} broker(s)
-                              </p>
-                              {env.description && (
-                                <p style={{ color: styles.status.color, margin: '4px 0 0 0', fontSize: '12px' }}>
-                                  {env.description}
-                                </p>
-                              )}
-                            </div>
-                            <button
-                              onClick={() => handleDeleteEnvironment(env.name)}
-                              style={{
-                                ...styles.button,
-                                backgroundColor: '#ef4444',
-                                padding: '6px 12px',
-                                fontSize: '12px',
-                              }}
-                            >
-                              删除
-                            </button>
+                          <option value="none">无认证</option>
+                          <option value="sasl-plain">SASL/PLAIN</option>
+                          <option value="sasl-scram">SASL/SCRAM</option>
+                          <option value="ssl">SSL</option>
+                        </select>
+                      </div>
+
+                      {(clusterFormData.authType === 'sasl-plain' || clusterFormData.authType === 'sasl-scram') && (
+                        <>
+                          <div style={styles.formGroup}>
+                            <label style={styles.label}>用户名</label>
+                            <input
+                              type="text"
+                              placeholder="SASL 用户名"
+                              value={clusterFormData.username}
+                              onChange={(e) => setClusterFormData({ ...clusterFormData, username: e.target.value })}
+                              style={styles.input}
+                            />
                           </div>
-                        </div>
-                      );
-                    })}
+                          <div style={styles.formGroup}>
+                            <label style={styles.label}>密码</label>
+                            <input
+                              type="password"
+                              placeholder="SASL 密码"
+                              value={clusterFormData.password}
+                              onChange={(e) => setClusterFormData({ ...clusterFormData, password: e.target.value })}
+                              style={styles.input}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* SSL 配置 */}
+                    <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: `1px solid ${styles.border}` }}>
+                      <h4 style={{ color: styles.title.color, margin: '0 0 12px 0', fontSize: '14px' }}>SSL/TLS 配置</h4>
+                      <div style={styles.formGroup}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={clusterFormData.sslEnabled}
+                            onChange={(e) => setClusterFormData({ ...clusterFormData, sslEnabled: e.target.checked })}
+                          />
+                          <span>启用 SSL/TLS</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* 超时配置 */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <h4 style={{ color: styles.title.color, margin: '0 0 12px 0', fontSize: '14px' }}>连接配置</h4>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>连接超时（毫秒）</label>
+                        <input
+                          type="number"
+                          value={clusterFormData.connectionTimeout}
+                          onChange={(e) => setClusterFormData({ ...clusterFormData, connectionTimeout: parseInt(e.target.value) })}
+                          style={styles.input}
+                        />
+                      </div>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>请求超时（毫秒）</label>
+                        <input
+                          type="number"
+                          value={clusterFormData.requestTimeout}
+                          onChange={(e) => setClusterFormData({ ...clusterFormData, requestTimeout: parseInt(e.target.value) })}
+                          style={styles.input}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 按钮 */}
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={handleSaveCluster}
+                        style={{
+                          ...styles.button,
+                          flex: 1,
+                          backgroundColor: '#10b981',
+                        }}
+                      >
+                        {editingClusterId ? '保存修改' : '创建集群'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          resetClusterForm();
+                          setShowClusterForm(false);
+                        }}
+                        style={{
+                          ...styles.button,
+                          flex: 1,
+                          backgroundColor: '#9ca3af',
+                        }}
+                      >
+                        取消
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
