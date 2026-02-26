@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { KafkaAPI } from '../service/kafka-api';
 import { ConsumerGroupsView } from './ConsumerGroupsView';
+import MessageConsumerView from './MessageConsumerView';
 
 interface Cluster {
   id: string;
@@ -2188,13 +2189,12 @@ const KafkaToolComponent: React.FC = () => {
           {/* 消费者组 */}
           {activeView === 'consumer-groups' && (
             <div>
-              <h2 style={{ marginBottom: '16px', color: styles.title.color, fontSize: '20px' }}>消费者组</h2>
               {!connectedCluster ? (
                 <div style={styles.emptyMessage}>
                   请先在"集群管理"中连接一个集群
                 </div>
               ) : (
-                <ConsumerGroupsView clusterId={connectedCluster.id} styles={styles} />
+                <MessageConsumerView clusterId={connectedCluster.id} styles={styles} isDarkMode={isDarkMode} />
               )}
             </div>
           )}
