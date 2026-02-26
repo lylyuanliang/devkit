@@ -12,6 +12,8 @@
   .mb-2 { margin-bottom: 0.5rem; }
   .mb-4 { margin-bottom: 1rem; }
   .mb-6 { margin-bottom: 1.5rem; }
+  .mt-1 { margin-top: 0.25rem; }
+  .mt-4 { margin-top: 1rem; }
   .space-y-2 > * + * { margin-top: 0.5rem; }
 
   /* Display */
@@ -97,6 +99,11 @@
   /* Transitions */
   .transition-colors {
     transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+  .transition-shadow {
+    transition-property: box-shadow;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 150ms;
   }
