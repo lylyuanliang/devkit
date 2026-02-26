@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { KafkaTool } from '../index';
+import { KafkaAPI } from '../service/kafka-api';
 import { TopicInfo } from '../types';
 
 interface DemoConsumerGroupFormProps {
   kafkaTool?: KafkaTool;
+  clusterId?: string;
   onClose: () => void;
   onGroupCreated?: () => void;
   isDarkMode?: boolean;
@@ -16,6 +18,7 @@ interface DemoConsumerGroupFormProps {
  */
 const DemoConsumerGroupForm: React.FC<DemoConsumerGroupFormProps> = ({
   kafkaTool,
+  clusterId,
   onClose,
   onGroupCreated,
   isDarkMode = false,
@@ -28,11 +31,11 @@ const DemoConsumerGroupForm: React.FC<DemoConsumerGroupFormProps> = ({
 
   useEffect(() => {
     loadTopics();
-  }, [kafkaTool]);
+  }, [clusterId]);
 
   const loadTopics = async () => {
-    if (!kafkaTool?.getKafkaService().isConnected()) {
-      setError('Not connected to Kafka cluster');
+    if (!clusterId) {
+      setError('集群ID未指定');
       setLoading(false);
       return;
     }
@@ -41,8 +44,7 @@ const DemoConsumerGroupForm: React.FC<DemoConsumerGroupFormProps> = ({
     setError(null);
 
     try {
-      const adminService = kafkaTool.getKafkaService().getAdminService();
-      const topicList = await adminService.listTopics();
+      const topicList = await KafkaAPI.listTopics(clusterId);
 
       // Filter out system topics
       const userTopics = topicList.filter((topic) => !topic.name.startsWith('__'));
@@ -52,7 +54,7 @@ const DemoConsumerGroupForm: React.FC<DemoConsumerGroupFormProps> = ({
         setSelectedTopic(userTopics[0].name);
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to load topics';
+      const errorMsg = err instanceof Error ? err.message : '加载主题失败';
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -61,12 +63,12 @@ const DemoConsumerGroupForm: React.FC<DemoConsumerGroupFormProps> = ({
 
   const handleCreateDemo = async () => {
     if (!selectedTopic) {
-      setError('Please select a topic');
+      setError('请选择一个主题');
       return;
     }
 
-    if (!kafkaTool?.getKafkaService().isConnected()) {
-      setError('Not connected to Kafka cluster');
+    if (!clusterId) {
+      setError('集群ID未指定');
       return;
     }
 

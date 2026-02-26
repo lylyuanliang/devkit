@@ -7,6 +7,7 @@ interface ConsumerGroupOnboardingProps {
   kafkaTool?: KafkaTool;
   isDarkMode?: boolean;
   onGroupCreated?: () => void;
+  clusterId?: string;
 }
 
 /**
@@ -18,6 +19,7 @@ const ConsumerGroupOnboarding: React.FC<ConsumerGroupOnboardingProps> = ({
   kafkaTool,
   isDarkMode = false,
   onGroupCreated,
+  clusterId,
 }) => {
   const [showGuide, setShowGuide] = useState(false);
   const [showDemo, setShowDemo] = useState(false);
@@ -219,6 +221,7 @@ const ConsumerGroupOnboarding: React.FC<ConsumerGroupOnboardingProps> = ({
       {showDemo && (
         <DemoConsumerGroupForm
           kafkaTool={kafkaTool}
+          clusterId={clusterId}
           onClose={() => setShowDemo(false)}
           onGroupCreated={() => {
             setShowDemo(false);
