@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { KafkaAPI } from '../service/kafka-api';
 import { ConsumerGroupsView } from './ConsumerGroupsView';
-import { cn } from './tailwindClasses';
 
 interface Cluster {
   id: string;
@@ -11,17 +10,20 @@ interface Cluster {
   topics?: string[];
   error?: string;
   lastConnectionAttempt?: number;
+  // 认证配置
   authType?: 'none' | 'sasl-plain' | 'sasl-scram' | 'ssl';
   username?: string;
   password?: string;
+  // SSL 配置
   sslEnabled?: boolean;
   sslCertPath?: string;
   sslKeyPath?: string;
   sslCaPath?: string;
+  // 其他配置
   description?: string;
   tags?: string[];
-  connectionTimeout?: number;
-  requestTimeout?: number;
+  connectionTimeout?: number; // 毫秒
+  requestTimeout?: number; // 毫秒
 }
 
 interface KafkaEnvironmentConfig {
@@ -32,6 +34,7 @@ interface KafkaEnvironmentConfig {
   tags?: string[];
 }
 
+// Validate JSON format
 const validateJSON = (content: string): { valid: boolean; error?: string } => {
   return {
     valid: KafkaAPI.isValidJSON(content),
@@ -39,188 +42,2367 @@ const validateJSON = (content: string): { valid: boolean; error?: string } => {
   };
 };
 
-export const KafkaToolComponent: React.FC = () => {
-  const [clusters, setClusters] = useState<Cluster[]>([]);
-  const [connectedCluster, setConnectedCluster] = useState<Cluster | null>(null);
-  const [activeView, setActiveView] = useState<'clusters' | 'topics' | 'consumer-groups' | 'produce'>('clusters');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+// 创建主题感知的样式
+const createThemeStyles = (isDarkMode: boolean) => {
+  const colors = isDarkMode ? {
+    containerBg: '#111827',
+    headerBg: '#1f2937',
+    sidebarBg: '#1f2937',
+    cardBg: '#273142',
+    textPrimary: '#f3f4f6',
+    textSecondary: '#d1d5db',
+    border: '#374151',
+    accent: '#3b82f6',
+    inputBg: '#1f2937',
+    inputBorder: '#374151',
+    topicCardBg: '#1e3a5f',
+    topicCardBorder: '#1e4d7b',
+    emptyBg: '#0f172a',
+    emptyBorder: '#1e3a5f',
+    emptyText: '#60a5fa',
+    hoverBg: '#374151',
+  } : {
+    containerBg: '#f9fafb',
+    headerBg: '#ffffff',
+    sidebarBg: '#f3f4f6',
+    cardBg: '#ffffff',
+    textPrimary: '#111827',
+    textSecondary: '#6b7280',
+    border: '#e5e7eb',
+    accent: '#2563eb',
+    inputBg: '#ffffff',
+    inputBorder: '#d1d5db',
+    topicCardBg: '#f0f9ff',
+    topicCardBorder: '#bfdbfe',
+    emptyBg: '#eff6ff',
+    emptyBorder: '#bfdbfe',
+    emptyText: '#1e40af',
+    hoverBg: '#f0f0f0',
+  };
 
-  // Load clusters from localStorage
+  return {
+    // Color utilities
+    accent: colors.accent,
+    border: colors.border,
+    textPrimary: colors.textPrimary,
+    textSecondary: colors.textSecondary,
+
+    container: {
+      width: '100%',
+      height: '100%',
+      backgroundColor: colors.containerBg,
+      display: 'flex',
+      flexDirection: 'column' as const,
+      transition: 'background-color 0.2s',
+    },
+    header: {
+      backgroundColor: colors.headerBg,
+      borderBottom: `1px solid ${colors.border}`,
+      padding: '16px 24px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      transition: 'background-color 0.2s, border-color 0.2s',
+    },
+    title: {
+      fontSize: '24px',
+      fontWeight: 'bold',
+      margin: 0,
+      color: colors.textPrimary,
+    },
+    status: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      color: colors.textSecondary,
+    },
+    statusDot: {
+      width: '8px',
+      height: '8px',
+      borderRadius: '50%',
+      backgroundColor: colors.border,
+    },
+    mainContainer: {
+      display: 'flex',
+      flex: 1,
+      overflow: 'hidden',
+    },
+    sidebar: {
+      width: '200px',
+      backgroundColor: colors.sidebarBg,
+      borderRight: `1px solid ${colors.border}`,
+      overflowY: 'auto' as const,
+      transition: 'background-color 0.2s, border-color 0.2s',
+    },
+    navItem: {
+      display: 'block',
+      width: '100%',
+      padding: '12px 16px',
+      border: 'none',
+      backgroundColor: 'transparent',
+      color: colors.textSecondary,
+      textAlign: 'left' as const,
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontWeight: 500,
+      transition: 'all 0.2s',
+      borderLeft: '3px solid transparent',
+    },
+    navItemActive: {
+      backgroundColor: colors.hoverBg,
+      color: colors.accent,
+      borderLeftColor: colors.accent,
+    },
+    content: {
+      flex: 1,
+      overflowY: 'auto' as const,
+      padding: '24px',
+      backgroundColor: colors.containerBg,
+      transition: 'background-color 0.2s',
+    },
+    card: {
+      backgroundColor: colors.cardBg,
+      border: `1px solid ${colors.border}`,
+      borderRadius: '8px',
+      padding: '24px',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+      marginBottom: '16px',
+      transition: 'background-color 0.2s, border-color 0.2s',
+    },
+    formGroup: {
+      marginBottom: '16px',
+    },
+    label: {
+      display: 'block',
+      fontSize: '14px',
+      fontWeight: 500,
+      marginBottom: '8px',
+      color: colors.textPrimary,
+    },
+    input: {
+      width: '100%',
+      padding: '8px 12px',
+      border: `1px solid ${colors.inputBorder}`,
+      borderRadius: '6px',
+      fontSize: '14px',
+      boxSizing: 'border-box' as const,
+      backgroundColor: colors.inputBg,
+      color: colors.textPrimary,
+      transition: 'background-color 0.2s, border-color 0.2s, color 0.2s',
+    },
+    button: {
+      padding: '10px 16px',
+      backgroundColor: colors.accent,
+      color: '#ffffff',
+      border: 'none',
+      borderRadius: '6px',
+      fontWeight: 500,
+      cursor: 'pointer',
+      fontSize: '14px',
+      transition: 'background-color 0.2s',
+    },
+    buttonDisabled: {
+      opacity: 0.5,
+      cursor: 'not-allowed',
+    },
+    topicGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+      gap: '12px',
+    },
+    topicCard: {
+      backgroundColor: colors.topicCardBg,
+      border: `1px solid ${colors.topicCardBorder}`,
+      borderRadius: '6px',
+      padding: '12px',
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+    },
+    topicCardHover: {
+      transform: 'translateY(-2px)',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    },
+    topicName: {
+      fontWeight: 600,
+      color: colors.accent,
+      marginBottom: '4px',
+    },
+    emptyMessage: {
+      padding: '16px',
+      backgroundColor: colors.emptyBg,
+      border: `1px solid ${colors.emptyBorder}`,
+      borderRadius: '6px',
+      color: colors.emptyText,
+      fontSize: '14px',
+      transition: 'background-color 0.2s, border-color 0.2s, color 0.2s',
+    },
+  };
+};
+
+const KafkaToolComponent: React.FC = () => {
+  const [activeView, setActiveView] = useState<'clusters' | 'topics' | 'consumer-groups' | 'produce' | 'monitoring' | 'settings'>('clusters');
+  const [clusters, setClusters] = useState<Cluster[]>([]);
+  const [newClusterName, setNewClusterName] = useState('');
+  const [newClusterBrokers, setNewClusterBrokers] = useState('');
+  const [editingClusterId, setEditingClusterId] = useState<string | null>(null);
+  const [showClusterForm, setShowClusterForm] = useState(false);
+  const [clusterFormData, setClusterFormData] = useState({
+    name: '',
+    brokers: '',
+    authType: 'none' as 'none' | 'sasl-plain' | 'sasl-scram' | 'ssl',
+    username: '',
+    password: '',
+    sslEnabled: false,
+    description: '',
+    connectionTimeout: 30000,
+    requestTimeout: 30000,
+  });
+  const [connecting, setConnecting] = useState<string | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+
+  // Tab/History state
+  interface TabItem {
+    id: string;
+    label: string;
+  }
+  const [openTabs, setOpenTabs] = useState<TabItem[]>([
+    { id: 'clusters', label: '📦 集群管理' }
+  ]);
+
+  // Topic search state
+  const [topicSearchTerm, setTopicSearchTerm] = useState('');
+  const [refreshingTopics, setRefreshingTopics] = useState(false);
+
+  // Produce view state
+  const [produceTopic, setProduceTopic] = useState('');
+  const [produceContent, setProduceContent] = useState('');
+  const [produceFormat, setProduceFormat] = useState<'json' | 'text'>('text');
+  const [produceKey, setProduceKey] = useState('');
+  const [producePartition, setProducePartition] = useState<string>('');
+  const [produceError, setProduceError] = useState('');
+  const [produceSending, setProduceSending] = useState(false);
+  const [produceSuccess, setProduceSuccess] = useState<{ partition: number; offset: string; timestamp: string } | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Consumer view state
+  const [consumeMessages, setConsumeMessages] = useState<Array<{
+    partition: number;
+    offset: string | number;
+    timestamp: string | number;
+    key: string | null;
+    value: string;
+  }>>([]);
+  const [consumeLoading, setConsumeLoading] = useState(false);
+  const [consumeError, setConsumeError] = useState('');
+  const [consumeErrorType, setConsumeErrorType] = useState<'connection-timeout' | 'broker-unreachable' | 'invalid-topic' | 'invalid-partition' | 'invalid-offset' | 'other' | null>(null);
+  const [consumeStartPosition, setConsumeStartPosition] = useState<'latest' | 'earliest' | 'offset' | 'timestamp'>('latest');
+  const [consumeStartOffset, setConsumeStartOffset] = useState('');
+  const [consumeStartTimestamp, setConsumeStartTimestamp] = useState('');
+  const [selectedMessage, setSelectedMessage] = useState<any | null>(null);
+  const [selectedMessageIndex, setSelectedMessageIndex] = useState(-1);
+  const [consumeSearchKey, setConsumeSearchKey] = useState('');
+  const [consumeSearchContent, setConsumeSearchContent] = useState('');
+  const [consumeSearchCaseSensitive, setConsumeSearchCaseSensitive] = useState(false);
+  const [consumeSearchOffsetMin, setConsumeSearchOffsetMin] = useState('');
+  const [consumeSearchOffsetMax, setConsumeSearchOffsetMax] = useState('');
+  const [consumeSearchTimestampMin, setConsumeSearchTimestampMin] = useState('');
+  const [consumeSearchTimestampMax, setConsumeSearchTimestampMax] = useState('');
+  const [messageDisplayFormat, setMessageDisplayFormat] = useState<'text' | 'json' | 'base64' | 'hex'>('text');
+  const [consumeTopicStats, setConsumeTopicStats] = useState<{ totalMessages: number; minOffset: number; maxOffset: number } | null>(null);
+  const [consumePartition, setConsumePartition] = useState<number | 'all'>(0);
+
+  // Environment management state
+  const [environments, setEnvironments] = useState<KafkaEnvironmentConfig[]>([]);
+  const [activeEnvironment, setActiveEnvironment] = useState<string>('default');
+  const [environmentLoading, setEnvironmentLoading] = useState(false);
+  const [environmentError, setEnvironmentError] = useState<string>('');
+
+  // 计算连接的集群（放在状态声明之后，useEffect之前）
+  const connectedCluster = clusters.find(c => c.connected);
+
+  // 检查是否是深色模式
   useEffect(() => {
-    const saved = localStorage.getItem('kafka-clusters');
-    if (saved) {
-      try {
-        setClusters(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to load clusters:', e);
+    const checkDarkMode = () => {
+      const savedTheme = localStorage.getItem('devkit-theme');
+      const isDark = savedTheme === 'dark';
+      setIsDarkMode(isDark);
+    };
+
+    // 初始检查
+    checkDarkMode();
+
+    // 监听自定义主题变化事件（从主应用派发）
+    const handleThemeChange = () => {
+      checkDarkMode();
+    };
+    window.addEventListener('devkit-theme-changed', handleThemeChange);
+
+    // 也监听 body class 变化（备用方案）
+    const observer = new MutationObserver(() => {
+      checkDarkMode();
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+
+    return () => {
+      window.removeEventListener('devkit-theme-changed', handleThemeChange);
+      observer.disconnect();
+    };
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Escape to close detail panel
+      if (event.key === 'Escape' && selectedMessage !== null) {
+        setSelectedMessage(null);
+        event.preventDefault();
       }
+      // Enter to search (if focused on search input)
+      // Ctrl+A or Cmd+A to select all in search (browser default)
+      // Alt+↑ to go to previous message
+      if ((event.altKey || event.ctrlKey) && event.key === 'ArrowUp' && selectedMessage !== null) {
+        handleNavigateToPreviousMessage();
+        event.preventDefault();
+      }
+      // Alt+↓ to go to next message
+      if ((event.altKey || event.ctrlKey) && event.key === 'ArrowDown' && selectedMessage !== null) {
+        handleNavigateToNextMessage();
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedMessage, selectedMessageIndex, consumeMessages]);
+
+  // Connection health is verified when operations fail naturally
+  // No need for active health checks since backend commands don't exist yet
+  useEffect(() => {
+    // Placeholder - real health checks will happen when users perform operations
+    // If connection dies, operations will fail and we'll show the error
+  }, [connectedCluster?.id, connectedCluster?.connected, clusters]);
+
+  // Reset consume view when cluster changes
+  useEffect(() => {
+    if (!connectedCluster) {
+      setConsumeMessages([]);
+      setConsumeError('');
+      setConsumeErrorType(null);
+      setSelectedMessage(null);
+      setSelectedTopic(null);
+      setConsumeTopicStats(null);
+    }
+  }, [connectedCluster?.id]);
+
+  // Handle cluster disconnection during consumption
+  useEffect(() => {
+    if (activeView === 'topics' && !connectedCluster && (consumeMessages.length > 0 || consumeError)) {
+      setConsumeError('集群已断开连接');
+      setConsumeErrorType('other');
+    }
+  }, [connectedCluster, activeView]);
+
+  // 从 localStorage 读取保存的集群配置
+  useEffect(() => {
+    const loadClustersAndReconnect = async () => {
+      try {
+        const saved = localStorage.getItem('kafka-clusters');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setClusters(parsed);
+
+          // 自动重连之前连接过的集群
+          const connectedClusters = parsed.filter((c: any) => c.connected);
+          for (const cluster of connectedClusters) {
+            try {
+              await KafkaAPI.connectCluster(cluster.id, cluster.brokers);
+              console.log(`自动重连集群成功: ${cluster.name}`);
+            } catch (error) {
+              console.error(`自动重连集群失败: ${cluster.name}`, error);
+              // 如果自动重连失败，更新状态
+              setClusters((prevClusters) =>
+                prevClusters.map((c) =>
+                  c.id === cluster.id ? { ...c, connected: false } : c
+                )
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.error('读取集群配置失败:', error);
+      }
+    };
+    loadClustersAndReconnect();
+
+    // 加载环境配置
+    try {
+      const savedEnvs = localStorage.getItem('kafka-environments');
+      if (savedEnvs) {
+        const parsed = JSON.parse(savedEnvs);
+        setEnvironments(parsed);
+      } else {
+        // 初始化默认环境
+        setEnvironments([]);
+      }
+
+      const savedActiveEnv = localStorage.getItem('kafka-active-environment');
+      if (savedActiveEnv) {
+        setActiveEnvironment(savedActiveEnv);
+      }
+    } catch (error) {
+      console.error('读取环境配置失败:', error);
     }
   }, []);
 
-  const handleConnectCluster = async (cluster: Cluster) => {
-    setLoading(true);
-    setError(null);
+  // 当 clusters 变化时保存到 localStorage
+  useEffect(() => {
+    if (clusters.length > 0) {
+      try {
+        localStorage.setItem('kafka-clusters', JSON.stringify(clusters));
+      } catch (error) {
+        console.error('保存集群配置失败:', error);
+      }
+    }
+  }, [clusters]);
+
+  // 根据主题动态生成样式
+  const styles = createThemeStyles(isDarkMode);
+
+  const handleSaveCluster = () => {
+    if (!clusterFormData.name.trim() || !clusterFormData.brokers.trim()) {
+      alert('请填写集群名称和 Broker 地址');
+      return;
+    }
+
+    const brokers = clusterFormData.brokers.split(',').map(b => b.trim());
+
+    if (editingClusterId) {
+      // 编辑现有集群
+      const updatedClusters = clusters.map(c =>
+        c.id === editingClusterId ? {
+          ...c,
+          name: clusterFormData.name,
+          brokers,
+          authType: clusterFormData.authType,
+          username: clusterFormData.username,
+          password: clusterFormData.password,
+          sslEnabled: clusterFormData.sslEnabled,
+          description: clusterFormData.description,
+          connectionTimeout: clusterFormData.connectionTimeout,
+          requestTimeout: clusterFormData.requestTimeout,
+        } : c
+      );
+      setClusters(updatedClusters);
+      localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
+    } else {
+      // 创建新集群
+      const newCluster: Cluster = {
+        id: Date.now().toString(),
+        name: clusterFormData.name,
+        brokers,
+        connected: false,
+        topics: [],
+        error: undefined,
+        lastConnectionAttempt: undefined,
+        authType: clusterFormData.authType,
+        username: clusterFormData.username,
+        password: clusterFormData.password,
+        sslEnabled: clusterFormData.sslEnabled,
+        description: clusterFormData.description,
+        connectionTimeout: clusterFormData.connectionTimeout,
+        requestTimeout: clusterFormData.requestTimeout,
+      };
+      const updatedClusters = [...clusters, newCluster];
+      setClusters(updatedClusters);
+      localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
+    }
+
+    resetClusterForm();
+    setShowClusterForm(false);
+  };
+
+  const resetClusterForm = () => {
+    setClusterFormData({
+      name: '',
+      brokers: '',
+      authType: 'none',
+      username: '',
+      password: '',
+      sslEnabled: false,
+      description: '',
+      connectionTimeout: 30000,
+      requestTimeout: 30000,
+    });
+    setEditingClusterId(null);
+  };
+
+  const startEditCluster = (cluster: Cluster) => {
+    setClusterFormData({
+      name: cluster.name,
+      brokers: cluster.brokers.join(', '),
+      authType: cluster.authType || 'none',
+      username: cluster.username || '',
+      password: cluster.password || '',
+      sslEnabled: cluster.sslEnabled || false,
+      description: cluster.description || '',
+      connectionTimeout: cluster.connectionTimeout || 30000,
+      requestTimeout: cluster.requestTimeout || 30000,
+    });
+    setEditingClusterId(cluster.id);
+    setShowClusterForm(true);
+  };
+
+  const handleConnectCluster = async (clusterId: string) => {
+    setConnecting(clusterId);
     try {
-      await KafkaAPI.connectCluster(cluster.id, cluster.brokers.join(','));
-      setConnectedCluster(cluster);
-      setActiveView('topics');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect');
+      const cluster = clusters.find(c => c.id === clusterId);
+      if (!cluster) {
+        throw new Error('Cluster not found');
+      }
+
+      // Clear previous error
+      setClusters(clusters.map(c =>
+        c.id === clusterId ? { ...c, error: undefined } : c
+      ));
+
+      // Connect to real Kafka cluster
+      await KafkaAPI.connectCluster(clusterId, cluster.brokers);
+
+      // If connection succeeds without throwing, mark as connected
+      // Real validation will happen when user tries to consume/produce
+      const topics = ['__consumer_offsets', 'devkit-test', 'orders', 'payments', 'users', 'logs'];
+
+      const updatedClusters = clusters.map(c =>
+        c.id === clusterId ? {
+          ...c,
+          connected: true,
+          topics,
+          error: undefined,
+          lastConnectionAttempt: Date.now()
+        } : c
+      );
+
+      setClusters(updatedClusters);
+      localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
+
+      // Auto-create environment for this cluster if it doesn't exist
+      const envExists = environments.find(e => e.name === cluster.name);
+      if (!envExists) {
+        const newEnv: KafkaEnvironmentConfig = {
+          name: cluster.name,
+          host: cluster.brokers[0]?.split(':')[0] || 'localhost',
+          brokers: cluster.brokers,
+          description: `Auto-created from cluster: ${cluster.name}`,
+        };
+
+        const updatedEnvs = [...environments, newEnv];
+        setEnvironments(updatedEnvs);
+        localStorage.setItem('kafka-environments', JSON.stringify(updatedEnvs));
+        console.log(`自动创建环境: ${cluster.name}`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      console.error('连接失败:', error);
+
+      // Update cluster state with error message
+      setClusters(clusters.map(c =>
+        c.id === clusterId ? {
+          ...c,
+          connected: false,
+          error: errorMessage,
+          lastConnectionAttempt: Date.now()
+        } : c
+      ));
     } finally {
-      setLoading(false);
+      setConnecting(null);
     }
   };
 
-  const handleDisconnect = () => {
-    setConnectedCluster(null);
-    setActiveView('clusters');
+  const handleDisconnectCluster = async (clusterId: string) => {
+    try {
+      await KafkaAPI.disconnectCluster(clusterId);
+      const updatedClusters = clusters.map(c =>
+        c.id === clusterId ? {
+          ...c,
+          connected: false,
+          topics: [],
+          error: undefined  // Clear error on manual disconnect
+        } : c
+      );
+      setClusters(updatedClusters);
+      localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      console.error('断开连接失败:', error);
+      const updatedClusters = clusters.map(c =>
+        c.id === clusterId ? {
+          ...c,
+          error: errorMessage,
+          lastConnectionAttempt: Date.now()
+        } : c
+      );
+      setClusters(updatedClusters);
+      localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
+    }
+  };
+
+  const handleDeleteCluster = async (clusterId: string) => {
+    // Disconnect if connected
+    const cluster = clusters.find(c => c.id === clusterId);
+    if (cluster?.connected) {
+      try {
+        await KafkaAPI.disconnectCluster(clusterId);
+      } catch (error) {
+        console.error('断开连接失败:', error);
+      }
+    }
+
+    // Delete cluster
+    const updatedClusters = clusters.filter(c => c.id !== clusterId);
+    setClusters(updatedClusters);
+    localStorage.setItem('kafka-clusters', JSON.stringify(updatedClusters));
+
+    // Also delete corresponding environment to maintain consistency
+    if (cluster?.name) {
+      const updatedEnvs = environments.filter(e => e.name !== cluster.name);
+      setEnvironments(updatedEnvs);
+      localStorage.setItem('kafka-environments', JSON.stringify(updatedEnvs));
+
+      // If deleted environment was active, switch to another
+      if (activeEnvironment === cluster.name && updatedEnvs.length > 0) {
+        setActiveEnvironment(updatedEnvs[0].name);
+        localStorage.setItem('kafka-active-environment', updatedEnvs[0].name);
+      }
+
+      console.log(`同时删除环境: ${cluster.name}`);
+    }
+  };
+
+  // Environment management handlers
+  const handleSwitchEnvironment = async (name: string) => {
+    setEnvironmentLoading(true);
+    setEnvironmentError('');
+    try {
+      const env = environments.find(e => e.name === name);
+      if (!env) {
+        setEnvironmentError('Environment not found');
+        return;
+      }
+
+      // Try to find and connect to corresponding cluster
+      const matchingCluster = clusters.find(c => c.name === name);
+      if (matchingCluster) {
+        if (!matchingCluster.connected) {
+          // Auto-connect to the cluster if not already connected
+          console.log(`自动连接集群: ${matchingCluster.name}`);
+          await handleConnectCluster(matchingCluster.id);
+        }
+      } else {
+        // Cluster not found, just switch environment
+        console.warn(`未找到匹配的集群: ${name}`);
+      }
+
+      setActiveEnvironment(name);
+      localStorage.setItem('kafka-active-environment', name);
+    } catch (error) {
+      setEnvironmentError(`Failed to switch environment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setEnvironmentLoading(false);
+    }
+  };
+
+  const handleAddEnvironment = async (env: KafkaEnvironmentConfig) => {
+    try {
+      // Check if environment already exists
+      if (environments.find(e => e.name === env.name)) {
+        setEnvironmentError('Environment name already exists');
+        return;
+      }
+
+      const newEnvs = [...environments, env];
+      setEnvironments(newEnvs);
+      localStorage.setItem('kafka-environments', JSON.stringify(newEnvs));
+      setEnvironmentError('');
+    } catch (error) {
+      setEnvironmentError(`Failed to add environment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleEditEnvironment = async (name: string, env: KafkaEnvironmentConfig) => {
+    try {
+      const newEnvs = environments.map(e => e.name === name ? env : e);
+      setEnvironments(newEnvs);
+      localStorage.setItem('kafka-environments', JSON.stringify(newEnvs));
+
+      // Also update corresponding cluster if it exists
+      const matchingCluster = clusters.find(c => c.name === name);
+      if (matchingCluster) {
+        setClusters(clusters.map(c =>
+          c.name === name ? {
+            ...c,
+            brokers: env.brokers,
+            // Note: host is just for display in environment manager
+          } : c
+        ));
+        // Save updated clusters to localStorage
+        localStorage.setItem('kafka-clusters', JSON.stringify(
+          clusters.map(c =>
+            c.name === name ? {
+              ...c,
+              brokers: env.brokers,
+            } : c
+          )
+        ));
+        console.log(`同时更新集群配置: ${name}`);
+      }
+
+      setEnvironmentError('');
+    } catch (error) {
+      setEnvironmentError(`Failed to edit environment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleDeleteEnvironment = async (name: string) => {
+    try {
+      const newEnvs = environments.filter(e => e.name !== name);
+      setEnvironments(newEnvs);
+      localStorage.setItem('kafka-environments', JSON.stringify(newEnvs));
+
+      // If deleted environment was active, switch to another
+      if (activeEnvironment === name && newEnvs.length > 0) {
+        setActiveEnvironment(newEnvs[0].name);
+        localStorage.setItem('kafka-active-environment', newEnvs[0].name);
+      }
+
+      setEnvironmentError('');
+    } catch (error) {
+      setEnvironmentError(`Failed to delete environment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleDuplicateEnvironment = async (name: string) => {
+    try {
+      const source = environments.find(e => e.name === name);
+      if (!source) {
+        setEnvironmentError('Environment not found');
+        return;
+      }
+
+      const newName = `${name}-copy`;
+      if (environments.find(e => e.name === newName)) {
+        setEnvironmentError('Duplicate environment name already exists');
+        return;
+      }
+
+      const newEnv = { ...source, name: newName };
+      const newEnvs = [...environments, newEnv];
+      setEnvironments(newEnvs);
+      localStorage.setItem('kafka-environments', JSON.stringify(newEnvs));
+      setEnvironmentError('');
+    } catch (error) {
+      setEnvironmentError(`Failed to duplicate environment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Handle message production
+  const handleProduceSend = async () => {
+    setProduceError('');
+    setProduceSuccess(null);
+
+    // Validation
+    if (!produceTopic.trim()) {
+      setProduceError('Please select a topic');
+      return;
+    }
+    if (!produceContent.trim()) {
+      setProduceError('Message content is required');
+      return;
+    }
+
+    if (!connectedCluster) {
+      setProduceError('Not connected to a cluster');
+      return;
+    }
+
+    // Validate JSON if format is JSON
+    if (produceFormat === 'json') {
+      const validation = validateJSON(produceContent);
+      if (!validation.valid) {
+        setProduceError(`Invalid JSON: ${validation.error}`);
+        return;
+      }
+    }
+
+    // Check message size
+    const msgSize = new Blob([produceContent]).size;
+    if (msgSize > 1024 * 1024) {
+      setProduceError('Message exceeds 1MB limit');
+      return;
+    }
+
+    setProduceSending(true);
+    try {
+      // Call actual Kafka Producer Service via API
+      const result = await KafkaAPI.produceMessage(connectedCluster.id, {
+        topic: produceTopic,
+        value: produceContent,
+        key: produceKey || undefined,
+        partition: producePartition ? parseInt(producePartition) : undefined,
+      });
+
+      setProduceSuccess(result);
+      setProduceContent('');
+    } catch (error) {
+      setProduceError(`Send failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setProduceSending(false);
+    }
+  };
+
+  // Handle refreshing topics list
+  const handleRefreshTopics = async () => {
+    if (!connectedCluster) return;
+
+    setRefreshingTopics(true);
+    try {
+      // Fetch fresh topics list
+      // For now using placeholder - in real implementation would call admin API
+      const topics = ['__consumer_offsets', 'devkit-test', 'orders', 'payments', 'users', 'logs'];
+
+      setClusters(clusters.map(c =>
+        c.id === connectedCluster.id ? { ...c, topics } : c
+      ));
+    } catch (error) {
+      console.error('Failed to refresh topics:', error);
+    } finally {
+      setRefreshingTopics(false);
+    }
+  };
+
+  // Handle message consumption - fetch messages from topic
+  const handleConsumeTopic = async (topic: string) => {
+    if (!connectedCluster) {
+      setConsumeError('Not connected to a cluster');
+      setConsumeErrorType('other');
+      return;
+    }
+
+    setConsumeLoading(true);
+    setConsumeError('');
+    setConsumeErrorType(null);
+    setConsumeMessages([]);
+    setSelectedMessage(null);
+    setSelectedMessageIndex(-1);
+
+    try {
+      // Call actual Kafka Consumer Service via API
+      const response = await KafkaAPI.consumeMessages(connectedCluster.id, {
+        topic,
+        partition: consumePartition === 'all' ? undefined : (consumePartition as number),
+        fromBeginning: consumeStartPosition === 'earliest',
+        startOffset: consumeStartPosition === 'offset' ? parseInt(consumeStartOffset) : undefined,
+        limit: 1000,
+      });
+
+      setConsumeMessages(response.messages as any);
+      if (response.messages && response.messages.length > 0) {
+        const minOffset = Math.min(...response.messages.map(m => typeof m.offset === 'string' ? parseInt(m.offset) : m.offset));
+        const maxOffset = Math.max(...response.messages.map(m => typeof m.offset === 'string' ? parseInt(m.offset) : m.offset));
+        setConsumeTopicStats({
+          totalMessages: response.totalMessages || 0,
+          minOffset,
+          maxOffset,
+        });
+      }
+    } catch (error) {
+      const { type, message } = classifyError(error);
+      setConsumeError(message);
+      setConsumeErrorType(type);
+    } finally {
+      setConsumeLoading(false);
+    }
+  };
+
+  // Handle message navigation (previous/next)
+  const handleNavigateToPreviousMessage = () => {
+    if (selectedMessageIndex > 0) {
+      const newIndex = selectedMessageIndex - 1;
+      setSelectedMessageIndex(newIndex);
+      setSelectedMessage(consumeMessages[newIndex]);
+      setMessageDisplayFormat('text');
+    }
+  };
+
+  const handleNavigateToNextMessage = () => {
+    if (selectedMessageIndex < consumeMessages.length - 1) {
+      const newIndex = selectedMessageIndex + 1;
+      setSelectedMessageIndex(newIndex);
+      setSelectedMessage(consumeMessages[newIndex]);
+      setMessageDisplayFormat('text');
+    }
+  };
+
+  // Handle offset jump
+  const handleJumpToOffset = async (offset: number) => {
+    if (!connectedCluster || !selectedTopic) {
+      setConsumeError('Cannot jump - topic not selected');
+      return;
+    }
+
+    setConsumeLoading(true);
+    setConsumeError('');
+    setConsumeMessages([]);
+    setSelectedMessage(null);
+
+    try {
+      const response = await KafkaAPI.consumeMessages(connectedCluster.id, {
+        topic: selectedTopic,
+        startOffset: offset,
+        partition: consumePartition === 'all' ? undefined : (consumePartition as number),
+        limit: 1000,
+      });
+
+      setConsumeMessages(response.messages as any);
+    } catch (error) {
+      setConsumeError(`Failed to jump to offset: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setConsumeLoading(false);
+    }
+  };
+
+  // Format message value based on selected display format
+  const formatMessageValue = (value: string) => {
+    try {
+      switch (messageDisplayFormat) {
+        case 'json':
+          if (KafkaAPI.isValidJSON(value)) {
+            return KafkaAPI.formatJSON(value);
+          }
+          return `(Not valid JSON)\n${value}`;
+        case 'base64':
+          return KafkaAPI.toBase64(value);
+        case 'hex':
+          return KafkaAPI.formatHex(KafkaAPI.toHex(value));
+        case 'text':
+        default:
+          return value;
+      }
+    } catch {
+      return value;
+    }
+  };
+
+  // Classify error type and provide helpful message
+  const classifyError = (error: Error | string): { type: typeof consumeErrorType; message: string } => {
+    const errorMsg = error instanceof Error ? error.message : error.toString();
+
+    if (errorMsg.includes('timeout') || errorMsg.includes('TIMEOUT')) {
+      return {
+        type: 'connection-timeout',
+        message: `连接超时: ${errorMsg}。请检查网络连接和 Broker 地址。`
+      };
+    }
+    if (errorMsg.includes('unreachable') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('无法到达')) {
+      return {
+        type: 'broker-unreachable',
+        message: `Broker 不可达: ${errorMsg}。请检查 Broker 是否正在运行。`
+      };
+    }
+    if (errorMsg.includes('not found') || errorMsg.includes('不存在')) {
+      return {
+        type: 'invalid-topic',
+        message: `Topic 不存在: ${errorMsg}`
+      };
+    }
+    if (errorMsg.includes('partition') || errorMsg.includes('分区')) {
+      return {
+        type: 'invalid-partition',
+        message: `分区错误: ${errorMsg}`
+      };
+    }
+    if (errorMsg.includes('offset') || errorMsg.includes('偏移量')) {
+      return {
+        type: 'invalid-offset',
+        message: `偏移量错误: ${errorMsg}`
+      };
+    }
+    return {
+      type: 'other',
+      message: errorMsg
+    };
+  };
+
+  // 导航项目
+  const navItems = [
+    { id: 'clusters', label: '📦 集群管理', icon: '📦' },
+    { id: 'topics', label: '📚 Topics', icon: '📚' },
+    { id: 'consumer-groups', label: '👥 消费者组', icon: '👥' },
+    { id: 'produce', label: '📤 生产消息', icon: '📤' },
+    { id: 'monitoring', label: '📊 监控', icon: '📊' },
+    { id: 'settings', label: '⚙️ 设置', icon: '⚙️' },
+  ];
+
+  // Handle navigation and tab history
+  const handleNavigate = (itemId: string) => {
+    const item = navItems.find(n => n.id === itemId);
+    if (!item) return;
+
+    setActiveView(itemId as any);
+
+    // Add to open tabs if not already there
+    if (!openTabs.find(tab => tab.id === itemId)) {
+      setOpenTabs([...openTabs, { id: itemId, label: item.label }]);
+    }
+  };
+
+  // Handle tab close
+  const handleCloseTab = (tabId: string) => {
+    const newTabs = openTabs.filter(tab => tab.id !== tabId);
+    setOpenTabs(newTabs);
+
+    // If closing the active tab, switch to another tab
+    if (activeView === tabId && newTabs.length > 0) {
+      const previousTab = newTabs[newTabs.length - 1];
+      setActiveView(previousTab.id as any);
+    }
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-gray-50 dark:bg-slate-950 transition-colors">
+    <div style={styles.container}>
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Kafka Tool</h1>
-          {connectedCluster && (
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Connected to: <span className="font-semibold">{connectedCluster.name}</span>
-            </p>
+      <div style={styles.header}>
+        <h1 style={styles.title}>🔄 Kafka Client</h1>
+        <div style={styles.status}>
+          {connectedCluster ? (
+            <>
+              <span style={{ ...styles.statusDot, backgroundColor: '#10b981' }}></span>
+              <span style={{ color: '#059669' }}>连接: {connectedCluster.name}</span>
+            </>
+          ) : (
+            <>
+              <span style={styles.statusDot}></span>
+              <span>未连接</span>
+            </>
           )}
         </div>
-      </header>
+      </div>
 
-      {/* Main Container */}
-      <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
+      {/* Main Content */}
+      <div style={styles.mainContainer}>
         {/* Sidebar */}
-        <nav className="w-full md:w-48 bg-gray-100 dark:bg-gray-800 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
-          <div className="p-4 space-y-2">
-            {connectedCluster ? (
-              <>
-                <button
-                  onClick={() => setActiveView('topics')}
-                  className={cn(
-                    'block w-full px-4 py-3 text-sm font-medium rounded-md transition-colors text-left',
-                    activeView === 'topics'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  )}
-                >
-                  📚 Topics
-                </button>
-                <button
-                  onClick={() => setActiveView('consumer-groups')}
-                  className={cn(
-                    'block w-full px-4 py-3 text-sm font-medium rounded-md transition-colors text-left',
-                    activeView === 'consumer-groups'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  )}
-                >
-                  👥 Consumer Groups
-                </button>
-                <button
-                  onClick={() => setActiveView('produce')}
-                  className={cn(
-                    'block w-full px-4 py-3 text-sm font-medium rounded-md transition-colors text-left',
-                    activeView === 'produce'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  )}
-                >
-                  ✉️ Produce
-                </button>
-                <button
-                  onClick={handleDisconnect}
-                  className="block w-full px-4 py-3 text-sm font-medium rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left mt-4"
-                >
-                  🔌 Disconnect
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => setActiveView('clusters')}
-                className={cn(
-                  'block w-full px-4 py-3 text-sm font-medium rounded-md transition-colors text-left',
-                  activeView === 'clusters'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                )}
-              >
-                📦 Clusters
-              </button>
-            )}
-          </div>
-        </nav>
+        <div style={{
+          width: sidebarExpanded ? '200px' : '50px',
+          backgroundColor: styles.sidebar.backgroundColor,
+          borderRight: styles.sidebar.borderRight,
+          overflowY: 'auto' as const,
+          overflowX: 'hidden' as const,
+          transition: 'width 0.3s ease, background-color 0.2s, border-color 0.2s',
+          display: 'flex',
+          flexDirection: 'column' as const,
+        }}>
+          {/* Toggle Button */}
+          <button
+            onClick={() => setSidebarExpanded(!sidebarExpanded)}
+            style={{
+              width: '100%',
+              padding: sidebarExpanded ? '12px' : '8px 4px',
+              border: 'none',
+              backgroundColor: styles.status.color === '#d1d5db' ? '#374151' : '#f0f0f0',
+              color: styles.status.color,
+              cursor: 'pointer',
+              fontSize: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s',
+              borderBottom: styles.sidebar.borderRight,
+              fontWeight: 'bold',
+              minHeight: '44px',
+            }}
+            title={sidebarExpanded ? '收拢菜单' : '展开菜单'}
+          >
+            ☰
+          </button>
 
-        {/* Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50 dark:bg-slate-950">
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
-              {error}
+          {/* Nav Items */}
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => handleNavigate(item.id)}
+              style={{
+                ...styles.navItem,
+                ...(activeView === item.id ? styles.navItemActive : {}),
+                padding: sidebarExpanded ? '12px 16px' : '12px',
+                justifyContent: sidebarExpanded ? 'flex-start' : 'center',
+              }}
+              title={sidebarExpanded ? '' : item.label}
+              onMouseOver={(e) => {
+                if (activeView !== item.id) {
+                  (e.target as HTMLElement).style.backgroundColor = isDarkMode ? '#374151' : '#e5e7eb';
+                }
+              }}
+              onMouseOut={(e) => {
+                if (activeView !== item.id) {
+                  (e.target as HTMLElement).style.backgroundColor = 'transparent';
+                }
+              }}
+            >
+              <span style={{ fontSize: '16px' }}>
+                {item.id === 'clusters' && '📦'}
+                {item.id === 'topics' && '📚'}
+                {item.id === 'consumer-groups' && '👥'}
+                {item.id === 'produce' && '📤'}
+                {item.id === 'environments' && '🔌'}
+                {item.id === 'monitoring' && '📊'}
+                {item.id === 'settings' && '⚙️'}
+              </span>
+              {sidebarExpanded && (
+                <span style={{ marginLeft: '8px', whiteSpace: 'nowrap' }}>
+                  {item.label.split(' ')[1]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Content Area */}
+        <div style={styles.content}>
+          {/* Tab Bar - Top of content area */}
+          {openTabs.length > 0 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '8px 12px',
+              borderBottom: `1px solid ${styles.border}`,
+              marginBottom: '16px',
+              overflowX: 'auto' as const,
+              backgroundColor: isDarkMode ? '#0f172a' : '#f9fafb',
+              borderRadius: '6px 6px 0 0',
+              marginLeft: '-24px',
+              marginRight: '-24px',
+              marginTop: '-24px',
+              paddingLeft: '24px',
+              paddingRight: '24px',
+            }}>
+              {openTabs.map((tab, index) => (
+                <div
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveView(tab.id as any);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '4px',
+                    backgroundColor: activeView === tab.id ? styles.accent : (isDarkMode ? '#1f2937' : '#ffffff'),
+                    color: activeView === tab.id ? '#ffffff' : styles.textSecondary,
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    transition: 'all 0.2s',
+                    border: activeView === tab.id ? `1px solid ${styles.accent}` : `1px solid ${styles.border}`,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                  title={tab.label}
+                >
+                  <span>{tab.label}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCloseTab(tab.id);
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'inherit',
+                      cursor: 'pointer',
+                      padding: '0 2px',
+                      fontSize: '14px',
+                      opacity: 0.7,
+                      transition: 'opacity 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                    onMouseOver={(e) => {
+                      (e.target as HTMLElement).style.opacity = '1';
+                    }}
+                    onMouseOut={(e) => {
+                      (e.target as HTMLElement).style.opacity = '0.7';
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
           )}
-
-          {/* Clusters View */}
+          {/* 集群管理 */}
           {activeView === 'clusters' && (
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Clusters</h2>
-              {clusters.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <h2 style={{ marginBottom: '16px', color: styles.title.color, fontSize: '20px' }}>集群管理</h2>
+
+              {clusters.length > 0 && (
+                <div style={{ marginBottom: '24px' }}>
+                  <h3 style={{ color: styles.title.color, marginBottom: '12px' }}>已配置的集群</h3>
                   {clusters.map((cluster) => (
                     <div
                       key={cluster.id}
-                      className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow"
+                      style={{
+                        ...styles.card,
+                        borderLeft: cluster.connected ? `4px solid #10b981` : `4px solid ${isDarkMode ? '#374151' : '#e5e7eb'}`,
+                      }}
                     >
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                        {cluster.name}
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 break-words">
-                        {cluster.brokers.join(', ')}
-                      </p>
-                      <button
-                        onClick={() => handleConnectCluster(cluster)}
-                        disabled={loading}
-                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                      >
-                        {loading ? 'Connecting...' : 'Connect'}
-                      </button>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
+                        <div>
+                          <h4 style={{ color: styles.title.color, margin: 0, marginBottom: '4px' }}>{cluster.name}</h4>
+                          <p style={{ color: styles.status.color, margin: 0, fontSize: '13px' }}>
+                            {cluster.brokers.join(', ')}
+                          </p>
+                        </div>
+                        {cluster.connected && (
+                          <span style={{ color: '#10b981', fontSize: '12px', fontWeight: 600 }}>✓ 已连接</span>
+                        )}
+                      </div>
+
+                      {/* Error message display */}
+                      {cluster.error && (
+                        <div style={{
+                          backgroundColor: '#fee2e2',
+                          border: '1px solid #fca5a5',
+                          color: '#dc2626',
+                          padding: '8px 12px',
+                          borderRadius: '4px',
+                          marginBottom: '12px',
+                          fontSize: '12px',
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ margin: '0 0 4px 0', fontWeight: 600 }}>❌ 连接失败</p>
+                              <p style={{ margin: 0, wordBreak: 'break-word' }}>{cluster.error}</p>
+                              {cluster.lastConnectionAttempt && (
+                                <p style={{ margin: '4px 0 0 0', fontSize: '11px', opacity: 0.8 }}>
+                                  {new Date(cluster.lastConnectionAttempt).toLocaleTimeString()}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => {
+                                setClusters(clusters.map(c =>
+                                  c.id === cluster.id ? { ...c, error: undefined } : c
+                                ));
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#dc2626',
+                                cursor: 'pointer',
+                                fontSize: '16px',
+                                marginLeft: '8px',
+                                flexShrink: 0,
+                              }}
+                              title="清除错误信息"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {!cluster.connected ? (
+                          <button
+                            onClick={() => handleConnectCluster(cluster.id)}
+                            disabled={connecting === cluster.id}
+                            style={{
+                              ...styles.button,
+                              ...(connecting === cluster.id ? styles.buttonDisabled : {}),
+                              flex: 1,
+                            }}
+                          >
+                            {connecting === cluster.id ? '连接中...' : '🔗 连接'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleDisconnectCluster(cluster.id)}
+                            style={{
+                              ...styles.button,
+                              backgroundColor: '#f97316',
+                              flex: 1,
+                            }}
+                          >
+                            🔌 断开连接
+                          </button>
+                        )}
+                        <button
+                          onClick={() => startEditCluster(cluster)}
+                          style={{
+                            ...styles.button,
+                            backgroundColor: '#3b82f6',
+                          }}
+                          title="编辑集群"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCluster(cluster.id)}
+                          style={{
+                            ...styles.button,
+                            backgroundColor: '#ef4444',
+                          }}
+                          title="删除集群"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
+              )}
+
+              {/* Cluster Form - Add/Edit */}
+              <div style={{ marginTop: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ color: styles.title.color, margin: 0 }}>
+                    {showClusterForm ? (editingClusterId ? '编辑集群' : '添加新集群') : ''}
+                  </h3>
+                  {!showClusterForm && (
+                    <button
+                      onClick={() => {
+                        resetClusterForm();
+                        setShowClusterForm(true);
+                      }}
+                      style={{
+                        ...styles.button,
+                        padding: '8px 16px',
+                      }}
+                    >
+                      ➕ 添加集群
+                    </button>
+                  )}
+                </div>
+
+                {showClusterForm && (
+                  <div style={{
+                    ...styles.card,
+                    backgroundColor: '#f9fafb',
+                  }}>
+                    {/* 基础信息 */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <h4 style={{ color: styles.title.color, margin: '0 0 12px 0', fontSize: '14px' }}>基础信息</h4>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>集群名称 *</label>
+                        <input
+                          type="text"
+                          placeholder="例如：本地、开发、生产"
+                          value={clusterFormData.name}
+                          onChange={(e) => setClusterFormData({ ...clusterFormData, name: e.target.value })}
+                          style={styles.input}
+                        />
+                      </div>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>Broker 地址（逗号分隔）*</label>
+                        <input
+                          type="text"
+                          placeholder="例如：localhost:9092, broker2:9092"
+                          value={clusterFormData.brokers}
+                          onChange={(e) => setClusterFormData({ ...clusterFormData, brokers: e.target.value })}
+                          style={styles.input}
+                        />
+                      </div>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>描述</label>
+                        <textarea
+                          placeholder="集群描述（可选）"
+                          value={clusterFormData.description}
+                          onChange={(e) => setClusterFormData({ ...clusterFormData, description: e.target.value })}
+                          style={{
+                            ...styles.input,
+                            minHeight: '60px',
+                            resize: 'vertical',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 认证配置 */}
+                    <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: `1px solid ${styles.border}` }}>
+                      <h4 style={{ color: styles.title.color, margin: '0 0 12px 0', fontSize: '14px' }}>认证配置</h4>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>认证类型</label>
+                        <select
+                          value={clusterFormData.authType}
+                          onChange={(e) => setClusterFormData({ ...clusterFormData, authType: e.target.value as any })}
+                          style={{
+                            ...styles.input,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="none">无认证</option>
+                          <option value="sasl-plain">SASL/PLAIN</option>
+                          <option value="sasl-scram">SASL/SCRAM</option>
+                          <option value="ssl">SSL</option>
+                        </select>
+                      </div>
+
+                      {(clusterFormData.authType === 'sasl-plain' || clusterFormData.authType === 'sasl-scram') && (
+                        <>
+                          <div style={styles.formGroup}>
+                            <label style={styles.label}>用户名</label>
+                            <input
+                              type="text"
+                              placeholder="SASL 用户名"
+                              value={clusterFormData.username}
+                              onChange={(e) => setClusterFormData({ ...clusterFormData, username: e.target.value })}
+                              style={styles.input}
+                            />
+                          </div>
+                          <div style={styles.formGroup}>
+                            <label style={styles.label}>密码</label>
+                            <input
+                              type="password"
+                              placeholder="SASL 密码"
+                              value={clusterFormData.password}
+                              onChange={(e) => setClusterFormData({ ...clusterFormData, password: e.target.value })}
+                              style={styles.input}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* SSL 配置 */}
+                    <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: `1px solid ${styles.border}` }}>
+                      <h4 style={{ color: styles.title.color, margin: '0 0 12px 0', fontSize: '14px' }}>SSL/TLS 配置</h4>
+                      <div style={styles.formGroup}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={clusterFormData.sslEnabled}
+                            onChange={(e) => setClusterFormData({ ...clusterFormData, sslEnabled: e.target.checked })}
+                          />
+                          <span>启用 SSL/TLS</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* 超时配置 */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <h4 style={{ color: styles.title.color, margin: '0 0 12px 0', fontSize: '14px' }}>连接配置</h4>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>连接超时（毫秒）</label>
+                        <input
+                          type="number"
+                          value={clusterFormData.connectionTimeout}
+                          onChange={(e) => setClusterFormData({ ...clusterFormData, connectionTimeout: parseInt(e.target.value) })}
+                          style={styles.input}
+                        />
+                      </div>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>请求超时（毫秒）</label>
+                        <input
+                          type="number"
+                          value={clusterFormData.requestTimeout}
+                          onChange={(e) => setClusterFormData({ ...clusterFormData, requestTimeout: parseInt(e.target.value) })}
+                          style={styles.input}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 按钮 */}
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={handleSaveCluster}
+                        style={{
+                          ...styles.button,
+                          flex: 1,
+                          backgroundColor: '#10b981',
+                        }}
+                      >
+                        {editingClusterId ? '保存修改' : '创建集群'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          resetClusterForm();
+                          setShowClusterForm(false);
+                        }}
+                        style={{
+                          ...styles.button,
+                          flex: 1,
+                          backgroundColor: '#9ca3af',
+                        }}
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Topics */}
+          {activeView === 'topics' && (
+            <div>
+              <h2 style={{ marginBottom: '16px', color: styles.title.color, fontSize: '20px' }}>Topics</h2>
+              {!connectedCluster ? (
+                <div style={styles.emptyMessage}>
+                  请先在"集群管理"中连接一个集群
+                </div>
+              ) : connectedCluster.topics && connectedCluster.topics.length > 0 ? (
+                <div>
+                  {!selectedTopic ? (
+                    // Topic List View
+                    <div>
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          placeholder="搜索 Topic..."
+                          value={topicSearchTerm}
+                          onChange={(e) => setTopicSearchTerm(e.target.value)}
+                          style={{
+                            ...styles.input,
+                            flex: 1,
+                          }}
+                        />
+                        <button
+                          onClick={handleRefreshTopics}
+                          disabled={refreshingTopics}
+                          style={{
+                            ...styles.button,
+                            minWidth: '100px',
+                            ...(refreshingTopics ? styles.buttonDisabled : {}),
+                          }}
+                          title="刷新 Topics 列表"
+                        >
+                          {refreshingTopics ? '刷新中...' : '🔄 刷新'}
+                        </button>
+                      </div>
+
+                      {(() => {
+                        const filteredTopics = connectedCluster.topics?.filter(topic =>
+                          topic.toLowerCase().includes(topicSearchTerm.toLowerCase())
+                        ) || [];
+
+                        return (
+                          <>
+                            <p style={{ color: styles.status.color, marginBottom: '16px' }}>
+                              找到 {filteredTopics.length} / {connectedCluster.topics?.length || 0} 个 Topics
+                            </p>
+                            <div style={styles.topicGrid}>
+                              {filteredTopics.map((topic) => (
+                                <div
+                                  key={topic}
+                                  style={styles.topicCard}
+                                  onClick={() => {
+                                    setSelectedTopic(topic);
+                                    handleConsumeTopic(topic);
+                                  }}
+                                  onMouseOver={(e) => {
+                                    Object.assign((e.currentTarget as any).style, styles.topicCardHover);
+                                  }}
+                                  onMouseOut={(e) => {
+                                    (e.currentTarget as any).style.transform = 'translateY(0)';
+                                    (e.currentTarget as any).style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <div style={styles.topicName}>{topic}</div>
+                                  <div style={{ fontSize: '12px', color: styles.status.color }}>点击消费消息</div>
+                                </div>
+                              ))}
+                            </div>
+                            {filteredTopics.length === 0 && topicSearchTerm && (
+                              <div style={styles.emptyMessage}>
+                                未找到匹配的 Topic
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    // Message List & Detail View
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <button
+                          onClick={() => {
+                            setSelectedTopic(null);
+                            setTopicSearchTerm('');
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: styles.status.color,
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                          }}
+                        >
+                          ← 返回 Topics
+                        </button>
+                        <button
+                          onClick={() => selectedTopic && handleConsumeTopic(selectedTopic)}
+                          disabled={consumeLoading}
+                          style={{
+                            ...styles.button,
+                            ...(consumeLoading ? styles.buttonDisabled : {}),
+                          }}
+                          title="刷新消息"
+                        >
+                          {consumeLoading ? '刷新中...' : '🔄 刷新'}
+                        </button>
+                      </div>
+
+                      <div style={styles.card}>
+                        <h3 style={{ color: styles.title.color, marginTop: 0, marginBottom: '12px' }}>
+                          📨 {selectedTopic}
+                        </h3>
+
+                        {/* Starting Position Controls */}
+                        <div style={{ marginBottom: '16px' }}>
+                          <label style={styles.label}>消费起始位置</label>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                            <button
+                              onClick={() => {
+                                setConsumeStartPosition('latest');
+                                setConsumeStartOffset('');
+                                setConsumeStartTimestamp('');
+                              }}
+                              style={{
+                                ...styles.button,
+                                backgroundColor: consumeStartPosition === 'latest' ? styles.button.backgroundColor : '#9ca3af',
+                              }}
+                            >
+                              Latest
+                            </button>
+                            <button
+                              onClick={() => {
+                                setConsumeStartPosition('earliest');
+                                setConsumeStartOffset('');
+                                setConsumeStartTimestamp('');
+                              }}
+                              style={{
+                                ...styles.button,
+                                backgroundColor: consumeStartPosition === 'earliest' ? styles.button.backgroundColor : '#9ca3af',
+                              }}
+                            >
+                              Earliest
+                            </button>
+                            <button
+                              onClick={() => setConsumeStartPosition('offset')}
+                              style={{
+                                ...styles.button,
+                                backgroundColor: consumeStartPosition === 'offset' ? styles.button.backgroundColor : '#9ca3af',
+                              }}
+                            >
+                              Offset
+                            </button>
+                            <button
+                              onClick={() => setConsumeStartPosition('timestamp')}
+                              style={{
+                                ...styles.button,
+                                backgroundColor: consumeStartPosition === 'timestamp' ? styles.button.backgroundColor : '#9ca3af',
+                              }}
+                            >
+                              Timestamp
+                            </button>
+                          </div>
+
+                          {/* Offset Jump Input */}
+                          {consumeStartPosition === 'offset' && (
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                              <input
+                                type="number"
+                                placeholder="输入起始 offset..."
+                                value={consumeStartOffset}
+                                onChange={(e) => setConsumeStartOffset(e.target.value)}
+                                style={{ ...styles.input, flex: 1 }}
+                              />
+                              <button
+                                onClick={() => {
+                                  if (consumeStartOffset) {
+                                    handleJumpToOffset(parseInt(consumeStartOffset));
+                                  }
+                                }}
+                                style={styles.button}
+                              >
+                                跳转
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Timestamp Selection */}
+                          {consumeStartPosition === 'timestamp' && (
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                              <input
+                                type="datetime-local"
+                                value={consumeStartTimestamp}
+                                onChange={(e) => setConsumeStartTimestamp(e.target.value)}
+                                style={{ ...styles.input, flex: 1 }}
+                              />
+                              <button
+                                onClick={() => {
+                                  if (consumeStartTimestamp) {
+                                    const timestamp = new Date(consumeStartTimestamp).getTime();
+                                    handleJumpToOffset(timestamp);
+                                  }
+                                }}
+                                style={styles.button}
+                              >
+                                跳转
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Topic Statistics */}
+                          {consumeTopicStats && (
+                            <div style={{
+                              padding: '8px 12px',
+                              backgroundColor: isDarkMode ? '#1a202c' : '#f0f9ff',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              color: styles.textSecondary,
+                            }}>
+                              <p style={{ margin: '4px 0' }}>📊 Topic 统计</p>
+                              <p style={{ margin: '2px 0' }}>总消息数: {consumeTopicStats.totalMessages}</p>
+                              <p style={{ margin: '2px 0' }}>Offset 范围: {consumeTopicStats.minOffset} - {consumeTopicStats.maxOffset}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Search Controls */}
+                        <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                              type="text"
+                              placeholder="按 Key 搜索..."
+                              value={consumeSearchKey}
+                              onChange={(e) => setConsumeSearchKey(e.target.value)}
+                              style={{ ...styles.input, flex: 1 }}
+                            />
+                            <button
+                              onClick={() => {
+                                setConsumeSearchKey('');
+                                setConsumeSearchContent('');
+                                setConsumeSearchOffsetMin('');
+                                setConsumeSearchOffsetMax('');
+                                setConsumeSearchTimestampMin('');
+                                setConsumeSearchTimestampMax('');
+                              }}
+                              style={{ ...styles.button, backgroundColor: '#9ca3af' }}
+                              title="清除所有过滤"
+                            >
+                              清除
+                            </button>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                              type="text"
+                              placeholder="按内容搜索..."
+                              value={consumeSearchContent}
+                              onChange={(e) => setConsumeSearchContent(e.target.value)}
+                              style={{ ...styles.input, flex: 1 }}
+                            />
+                          </div>
+
+                          {/* Advanced Filters - Offset Range */}
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '12px' }}>
+                            <span style={{ color: styles.textSecondary, minWidth: '60px' }}>Offset 范围:</span>
+                            <input
+                              type="number"
+                              placeholder="最小"
+                              value={consumeSearchOffsetMin}
+                              onChange={(e) => setConsumeSearchOffsetMin(e.target.value)}
+                              style={{ ...styles.input, flex: 1, minWidth: '80px' }}
+                            />
+                            <span style={{ color: styles.textSecondary }}>-</span>
+                            <input
+                              type="number"
+                              placeholder="最大"
+                              value={consumeSearchOffsetMax}
+                              onChange={(e) => setConsumeSearchOffsetMax(e.target.value)}
+                              style={{ ...styles.input, flex: 1, minWidth: '80px' }}
+                            />
+                          </div>
+
+                          {/* Timestamp Range Filter */}
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '12px', flexWrap: 'wrap' }}>
+                            <span style={{ color: styles.textSecondary, minWidth: '60px' }}>时间范围:</span>
+                            <input
+                              type="datetime-local"
+                              placeholder="开始时间"
+                              value={consumeSearchTimestampMin}
+                              onChange={(e) => setConsumeSearchTimestampMin(e.target.value)}
+                              style={{ ...styles.input, flex: 1, minWidth: '180px' }}
+                            />
+                            <span style={{ color: styles.textSecondary }}>-</span>
+                            <input
+                              type="datetime-local"
+                              placeholder="结束时间"
+                              value={consumeSearchTimestampMax}
+                              onChange={(e) => setConsumeSearchTimestampMax(e.target.value)}
+                              style={{ ...styles.input, flex: 1, minWidth: '180px' }}
+                            />
+                          </div>
+
+                          {/* Case Sensitive Toggle */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                            <input
+                              type="checkbox"
+                              id="case-sensitive"
+                              checked={consumeSearchCaseSensitive}
+                              onChange={(e) => setConsumeSearchCaseSensitive(e.target.checked)}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <label htmlFor="case-sensitive" style={{ cursor: 'pointer', color: styles.textSecondary }}>
+                              区分大小写
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Error Message with Retry */}
+                        {consumeError && (
+                          <div style={{
+                            ...styles.emptyMessage,
+                            backgroundColor: '#fee2e2',
+                            borderColor: '#fca5a5',
+                            color: '#dc2626',
+                            marginBottom: '12px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}>
+                            <span>
+                              ❌ {consumeError}
+                            </span>
+                            <button
+                              onClick={() => selectedTopic && handleConsumeTopic(selectedTopic)}
+                              disabled={consumeLoading}
+                              style={{
+                                ...styles.button,
+                                backgroundColor: '#ef4444',
+                                fontSize: '12px',
+                                padding: '6px 12px',
+                                marginLeft: '12px',
+                              }}
+                              title="重新尝试"
+                            >
+                              🔄 重试
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Loading State */}
+                        {consumeLoading ? (
+                          <div style={{ textAlign: 'center', padding: '32px', color: styles.status.color }}>
+                            ⏳ 加载消息中...
+                          </div>
+                        ) : consumeMessages.length === 0 ? (
+                          <div style={styles.emptyMessage}>
+                            该 topic 中没有消息
+                          </div>
+                        ) : selectedMessage !== null ? (
+                          // Message Detail View
+                          <div>
+                            <button
+                              onClick={() => setSelectedMessage(null)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: styles.status.color,
+                                cursor: 'pointer',
+                                marginBottom: '12px',
+                                fontSize: '14px',
+                              }}
+                            >
+                              ← 返回列表
+                            </button>
+                            <div style={{ ...styles.card, backgroundColor: styles.cardBg }}>
+                              {selectedMessage && (
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                    <h4 style={{ color: styles.title.color, margin: 0 }}>消息详情</h4>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                      <button
+                                        onClick={handleNavigateToPreviousMessage}
+                                        disabled={selectedMessageIndex <= 0}
+                                        style={{
+                                          ...styles.button,
+                                          backgroundColor: selectedMessageIndex <= 0 ? '#9ca3af' : styles.button.backgroundColor,
+                                          cursor: selectedMessageIndex <= 0 ? 'not-allowed' : 'pointer',
+                                        }}
+                                        title="上一条消息"
+                                      >
+                                        ← 上一条
+                                      </button>
+                                      <button
+                                        onClick={handleNavigateToNextMessage}
+                                        disabled={selectedMessageIndex >= consumeMessages.length - 1}
+                                        style={{
+                                          ...styles.button,
+                                          backgroundColor: selectedMessageIndex >= consumeMessages.length - 1 ? '#9ca3af' : styles.button.backgroundColor,
+                                          cursor: selectedMessageIndex >= consumeMessages.length - 1 ? 'not-allowed' : 'pointer',
+                                        }}
+                                        title="下一条消息"
+                                      >
+                                        下一条 →
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div style={{ marginBottom: '12px' }}>
+                                    <p style={{ color: styles.status.color, fontSize: '12px', marginBottom: '4px' }}>
+                                      <strong>消息位置:</strong> {selectedMessageIndex + 1} / {consumeMessages.length}
+                                    </p>
+                                    <p style={{ color: styles.status.color, fontSize: '12px', marginBottom: '4px' }}>
+                                      <strong>分区:</strong> {selectedMessage.partition}
+                                    </p>
+                                    <p style={{ color: styles.status.color, fontSize: '12px', marginBottom: '4px' }}>
+                                      <strong>Offset:</strong> {selectedMessage.offset}
+                                    </p>
+                                    <p style={{ color: styles.status.color, fontSize: '12px', marginBottom: '4px' }}>
+                                      <strong>时间戳:</strong> {new Date(selectedMessage.timestamp).toLocaleString()}
+                                    </p>
+                                    {selectedMessage.key && (
+                                      <p style={{ color: styles.status.color, fontSize: '12px', marginBottom: '4px' }}>
+                                        <strong>Key:</strong> {selectedMessage.key}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {/* Display Format Selector */}
+                                  <div style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: `1px solid ${styles.border}` }}>
+                                    <label style={{ ...styles.label, marginBottom: '8px' }}>显示格式</label>
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                      <button
+                                        onClick={() => setMessageDisplayFormat('text')}
+                                        style={{
+                                          ...styles.button,
+                                          fontSize: '12px',
+                                          padding: '6px 12px',
+                                          backgroundColor: messageDisplayFormat === 'text' ? styles.button.backgroundColor : '#9ca3af',
+                                        }}
+                                      >
+                                        纯文本
+                                      </button>
+                                      <button
+                                        onClick={() => setMessageDisplayFormat('json')}
+                                        style={{
+                                          ...styles.button,
+                                          fontSize: '12px',
+                                          padding: '6px 12px',
+                                          backgroundColor: messageDisplayFormat === 'json' ? styles.button.backgroundColor : '#9ca3af',
+                                        }}
+                                      >
+                                        JSON
+                                      </button>
+                                      <button
+                                        onClick={() => setMessageDisplayFormat('base64')}
+                                        style={{
+                                          ...styles.button,
+                                          fontSize: '12px',
+                                          padding: '6px 12px',
+                                          backgroundColor: messageDisplayFormat === 'base64' ? styles.button.backgroundColor : '#9ca3af',
+                                        }}
+                                      >
+                                        Base64
+                                      </button>
+                                      <button
+                                        onClick={() => setMessageDisplayFormat('hex')}
+                                        style={{
+                                          ...styles.button,
+                                          fontSize: '12px',
+                                          padding: '6px 12px',
+                                          backgroundColor: messageDisplayFormat === 'hex' ? styles.button.backgroundColor : '#9ca3af',
+                                        }}
+                                      >
+                                        Hex
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${styles.border}` }}>
+                                    <label style={styles.label}>消息内容</label>
+                                    <pre
+                                      style={{
+                                        backgroundColor: isDarkMode ? '#0f172a' : '#f9fafb',
+                                        padding: '12px',
+                                        borderRadius: '6px',
+                                        overflowX: 'auto',
+                                        fontSize: '12px',
+                                        color: styles.textPrimary,
+                                        maxHeight: '400px',
+                                        overflowY: 'auto',
+                                        fontFamily: 'monospace',
+                                        border: `1px solid ${styles.border}`,
+                                      }}
+                                    >
+                                      {formatMessageValue(selectedMessage.value)}
+                                    </pre>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(formatMessageValue(selectedMessage.value));
+                                    }}
+                                    style={{ ...styles.button, marginTop: '12px' }}
+                                  >
+                                    📋 复制到剪贴板
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          // Message List View
+                          <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                            {(() => {
+                              // Apply search filters with advanced options
+                              let filteredMessages = [...consumeMessages];
+
+                              // Filter by key
+                              if (consumeSearchKey) {
+                                filteredMessages = filteredMessages.filter((msg) => {
+                                  if (!msg.key) return false;
+                                  return consumeSearchCaseSensitive
+                                    ? msg.key.includes(consumeSearchKey)
+                                    : msg.key.toLowerCase().includes(consumeSearchKey.toLowerCase());
+                                });
+                              }
+
+                              // Filter by content
+                              if (consumeSearchContent) {
+                                filteredMessages = filteredMessages.filter((msg) => {
+                                  if (!msg.value) return false;
+                                  return consumeSearchCaseSensitive
+                                    ? msg.value.includes(consumeSearchContent)
+                                    : msg.value.toLowerCase().includes(consumeSearchContent.toLowerCase());
+                                });
+                              }
+
+                              // Filter by offset range
+                              if (consumeSearchOffsetMin) {
+                                const minOffset = parseInt(consumeSearchOffsetMin);
+                                filteredMessages = filteredMessages.filter((msg) => {
+                                  const offset = typeof msg.offset === 'string' ? parseInt(msg.offset) : msg.offset;
+                                  return offset >= minOffset;
+                                });
+                              }
+                              if (consumeSearchOffsetMax) {
+                                const maxOffset = parseInt(consumeSearchOffsetMax);
+                                filteredMessages = filteredMessages.filter((msg) => {
+                                  const offset = typeof msg.offset === 'string' ? parseInt(msg.offset) : msg.offset;
+                                  return offset <= maxOffset;
+                                });
+                              }
+
+                              // Filter by timestamp range
+                              if (consumeSearchTimestampMin) {
+                                const minTimestamp = new Date(consumeSearchTimestampMin).getTime();
+                                filteredMessages = filteredMessages.filter((msg) => {
+                                  const timestamp = typeof msg.timestamp === 'string' ? parseInt(msg.timestamp) : msg.timestamp;
+                                  return timestamp >= minTimestamp;
+                                });
+                              }
+                              if (consumeSearchTimestampMax) {
+                                const maxTimestamp = new Date(consumeSearchTimestampMax).getTime();
+                                filteredMessages = filteredMessages.filter((msg) => {
+                                  const timestamp = typeof msg.timestamp === 'string' ? parseInt(msg.timestamp) : msg.timestamp;
+                                  return timestamp <= maxTimestamp;
+                                });
+                              }
+
+                              if (filteredMessages.length === 0 && (consumeSearchKey || consumeSearchContent || consumeSearchOffsetMin || consumeSearchOffsetMax || consumeSearchTimestampMin || consumeSearchTimestampMax)) {
+                                return (
+                                  <div style={styles.emptyMessage}>
+                                    没有找到匹配的消息
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <>
+                                  <div style={{ marginBottom: '12px', fontSize: '12px', color: styles.textSecondary }}>
+                                    显示 {filteredMessages.length} / {consumeMessages.length} 条消息
+                                  </div>
+                                  {filteredMessages.map((msg, idx) => {
+                                    const actualIndex = consumeMessages.findIndex(m => m === msg);
+                                    return (
+                                      <div
+                                        key={idx}
+                                        onClick={() => {
+                                          setSelectedMessage(msg);
+                                          setSelectedMessageIndex(actualIndex);
+                                          setMessageDisplayFormat('text');
+                                        }}
+                                        style={{
+                                          ...styles.card,
+                                          cursor: 'pointer',
+                                          marginBottom: '8px',
+                                          padding: '12px',
+                                          backgroundColor: idx % 2 === 0 ? styles.cardBg : (isDarkMode ? '#1a202c' : '#f5f5f5'),
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                                          <div style={{ flex: 1 }}>
+                                            <p style={{ color: styles.status.color, fontSize: '11px', margin: '0 0 4px 0' }}>
+                                              P{msg.partition} • Offset {msg.offset}
+                                            </p>
+                                            {msg.key && (
+                                              <p style={{ color: styles.accent, fontSize: '12px', margin: '0 0 6px 0', fontWeight: 600 }}>
+                                                🔑 {msg.key}
+                                              </p>
+                                            )}
+                                            <p style={{ color: styles.textPrimary, fontSize: '12px', margin: 0, wordBreak: 'break-word' }}>
+                                              {msg.value.length > 100 ? msg.value.substring(0, 100) + '...' : msg.value}
+                                            </p>
+                                          </div>
+                                          <span style={{ color: styles.status.color, fontSize: '11px', whiteSpace: 'nowrap', marginLeft: '8px' }}>
+                                            → 查看
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
-                <div className="p-6 text-center text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-900 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700">
-                  No clusters configured
+                <div style={styles.emptyMessage}>集群中没有 Topics</div>
+              )}
+            </div>
+          )}
+
+          {/* 消费者组 */}
+          {activeView === 'consumer-groups' && (
+            <div>
+              <h2 style={{ marginBottom: '16px', color: styles.title.color, fontSize: '20px' }}>消费者组</h2>
+              {!connectedCluster ? (
+                <div style={styles.emptyMessage}>
+                  请先在"集群管理"中连接一个集群
+                </div>
+              ) : (
+                <ConsumerGroupsView clusterId={connectedCluster.id} styles={styles} />
+              )}
+            </div>
+          )}
+
+          {/* 生产消息 */}
+          {activeView === 'produce' && (
+            <div>
+              <h2 style={{ color: styles.title.color, fontSize: '20px' }}>生产消息</h2>
+              {!connectedCluster ? (
+                <div style={styles.emptyMessage}>
+                  请先在"集群管理"中连接一个集群
+                </div>
+              ) : (
+                <div>
+                  {/* Topic Selector */}
+                  <div style={styles.card}>
+                    <label style={styles.label}>选择 Topic</label>
+                    <select
+                      value={produceTopic}
+                      onChange={(e) => setProduceTopic(e.target.value)}
+                      style={{
+                        ...styles.input,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value="">-- 选择一个 Topic --</option>
+                      {connectedCluster.topics?.map((topic) => (
+                        <option key={topic} value={topic}>
+                          {topic}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Format Selector */}
+                  <div style={styles.card}>
+                    <label style={styles.label}>消息格式</label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => setProduceFormat('text')}
+                        style={{
+                          ...styles.button,
+                          backgroundColor: produceFormat === 'text' ? styles.button.backgroundColor : '#9ca3af',
+                          flex: 1,
+                        }}
+                      >
+                        纯文本
+                      </button>
+                      <button
+                        onClick={() => setProduceFormat('json')}
+                        style={{
+                          ...styles.button,
+                          backgroundColor: produceFormat === 'json' ? styles.button.backgroundColor : '#9ca3af',
+                          flex: 1,
+                        }}
+                      >
+                        JSON
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Message Editor */}
+                  <div style={styles.card}>
+                    <label style={styles.label}>消息内容</label>
+                    <textarea
+                      value={produceContent}
+                      onChange={(e) => setProduceContent(e.target.value)}
+                      placeholder={produceFormat === 'json' ? '输入有效的 JSON...' : '输入消息内容...'}
+                      style={{
+                        ...styles.input,
+                        minHeight: '200px',
+                        fontFamily: 'monospace',
+                        fontSize: '12px',
+                      } as React.CSSProperties}
+                    />
+                    {produceContent && (
+                      <p style={{ color: '#6b7280', fontSize: '12px', marginTop: '8px' }}>
+                        大小: {(new Blob([produceContent]).size / 1024).toFixed(2)} KB
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Advanced Options */}
+                  <div style={styles.card}>
+                    <button
+                      onClick={() => setShowAdvanced(!showAdvanced)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: styles.accent,
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        padding: 0,
+                      }}
+                    >
+                      {showAdvanced ? '▼' : '▶'} 高级选项
+                    </button>
+
+                    {showAdvanced && (
+                      <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${styles.border}` }}>
+                        <div style={styles.formGroup}>
+                          <label style={styles.label}>消息 Key (可选)</label>
+                          <input
+                            type="text"
+                            value={produceKey}
+                            onChange={(e) => setProduceKey(e.target.value)}
+                            placeholder="消息 key..."
+                            style={styles.input}
+                          />
+                        </div>
+
+                        <div style={styles.formGroup}>
+                          <label style={styles.label}>指定分区 (可选)</label>
+                          <input
+                            type="number"
+                            value={producePartition}
+                            onChange={(e) => setProducePartition(e.target.value)}
+                            placeholder="分区号..."
+                            style={styles.input}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Error Message */}
+                  {produceError && (
+                    <div
+                      style={{
+                        ...styles.emptyMessage,
+                        backgroundColor: '#fee2e2',
+                        borderColor: '#fca5a5',
+                        color: '#dc2626',
+                      }}
+                    >
+                      ❌ {produceError}
+                    </div>
+                  )}
+
+                  {/* Success Message */}
+                  {produceSuccess && (
+                    <div
+                      style={{
+                        ...styles.emptyMessage,
+                        backgroundColor: '#dcfce7',
+                        borderColor: '#86efac',
+                        color: '#166534',
+                      }}
+                    >
+                      ✓ 消息发送成功！分区: {produceSuccess.partition}, Offset: {produceSuccess.offset}
+                    </div>
+                  )}
+
+                  {/* JSON Validation Error */}
+                  {produceFormat === 'json' && produceContent && !validateJSON(produceContent).valid && (
+                    <div
+                      style={{
+                        ...styles.emptyMessage,
+                        backgroundColor: '#fef3c7',
+                        borderColor: '#fcd34d',
+                        color: '#92400e',
+                      }}
+                    >
+                      ⚠️ JSON 格式错误: {validateJSON(produceContent).error}
+                    </div>
+                  )}
+
+                  {/* Send Button */}
+                  <button
+                    onClick={handleProduceSend}
+                    disabled={!produceTopic || !produceContent || produceSending || (produceFormat === 'json' && !validateJSON(produceContent).valid)}
+                    style={{
+                      ...styles.button,
+                      width: '100%',
+                      ...((!produceTopic || !produceContent || produceSending || (produceFormat === 'json' && !validateJSON(produceContent).valid))
+                        ? styles.buttonDisabled
+                        : {}),
+                    }}
+                  >
+                    {produceSending ? '📤 发送中...' : '📤 发送消息'}
+                  </button>
                 </div>
               )}
             </div>
           )}
 
-          {/* Topics View */}
-          {activeView === 'topics' && connectedCluster && (
+          {/* 监控 */}
+          {activeView === 'monitoring' && (
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Topics</h2>
-              <p className="text-gray-600 dark:text-gray-400">Topics view coming soon...</p>
+              <h2 style={{ color: styles.title.color, fontSize: '20px' }}>监控</h2>
+              <div style={styles.emptyMessage}>
+                此功能开发中...
+              </div>
             </div>
           )}
 
-          {/* Consumer Groups View */}
-          {activeView === 'consumer-groups' && connectedCluster && (
+          {/* 环境管理 */}
+          {/* 设置 */}
+          {activeView === 'settings' && (
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Consumer Groups</h2>
-              <ConsumerGroupsView clusterId={connectedCluster.id} styles={{}} />
+              <h2 style={{ color: styles.title.color, fontSize: '20px' }}>设置</h2>
+              <div style={styles.emptyMessage}>
+                此功能开发中...
+              </div>
             </div>
           )}
-
-          {/* Produce View */}
-          {activeView === 'produce' && connectedCluster && (
-            <div>
-              <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Produce Message</h2>
-              <p className="text-gray-600 dark:text-gray-400">Produce view coming soon...</p>
-            </div>
-          )}
-        </main>
+        </div>
       </div>
     </div>
   );
