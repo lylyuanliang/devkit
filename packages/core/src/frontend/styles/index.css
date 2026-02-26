@@ -1,5 +1,6 @@
 @import './theme.css';
 @import './dark-mode.css';
+@import './tailwind-utilities.css';
 
 @tailwind base;
 @tailwind components;

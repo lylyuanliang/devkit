@@ -1,0 +1,64 @@
+/* Tailwind utilities for KafkaToolComponent */
+@layer utilities {
+  .flex-col { flex-direction: column; }
+  .text-2xl { font-size: 1.5rem; line-height: 2rem; }
+  .font-bold { font-weight: 700; }
+  .rounded-lg { border-radius: 0.5rem; }
+  .shadow-sm { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
+  .hover\:shadow-md:hover { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+  .grid { display: grid; }
+  .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .gap-4 { gap: 1rem; }
+  .text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+  .font-semibold { font-weight: 600; }
+  .mb-2 { margin-bottom: 0.5rem; }
+  .mb-4 { margin-bottom: 1rem; }
+  .mb-6 { margin-bottom: 1.5rem; }
+  .break-words { word-break: break-word; }
+  .text-center { text-align: center; }
+  .text-gray-500 { color: #6b7280; }
+  .text-gray-400 { color: #9ca3af; }
+  .border-2 { border-width: 2px; }
+  .border-dashed { border-style: dashed; }
+  .border-gray-300 { border-color: #d1d5db; }
+  .md\:text-2xl { font-size: 1.5rem; line-height: 2rem; }
+  .md\:p-6 { padding: 1.5rem; }
+  .md\:border-b-0 { border-bottom-width: 0; }
+  .md\:border-r { border-right-width: 1px; }
+  .md\:flex-row { flex-direction: row; }
+  .sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .transition-colors { transition-property: background-color, border-color, color, fill, stroke; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+  .hover\:bg-blue-700:hover { background-color: #1d4ed8; }
+  .disabled\:opacity-50:disabled { opacity: 0.5; }
+}
+
+/* Dark mode styles */
+.dark .bg-gray-50 { background-color: oklch(12.2% .022 247.858); }
+.dark .bg-white { background-color: #1f2937; }
+.dark .bg-gray-100 { background-color: #1f2937; }
+.dark .bg-gray-200 { background-color: #374151; }
+.dark .bg-red-50 { background-color: rgba(127, 29, 29, 0.2); }
+.dark .bg-slate-800 { background-color: #1e293b; }
+.dark .bg-slate-900 { background-color: #0f172a; }
+.dark .bg-slate-950 { background-color: #020617; }
+.dark .bg-gray-800 { background-color: #1f2937; }
+
+.dark .text-gray-900 { color: #f3f4f6; }
+.dark .text-gray-600 { color: #9ca3af; }
+.dark .text-gray-400 { color: #9ca3af; }
+.dark .text-gray-100 { color: #f3f4f6; }
+.dark .text-red-700 { color: #fca5a5; }
+.dark .text-red-600 { color: #fca5a5; }
+.dark .text-red-400 { color: #f87171; }
+
+.dark .border-gray-200 { border-color: #374151; }
+.dark .border-gray-700 { border-color: #374151; }
+.dark .border-red-200 { border-color: #7f1d1d; }
+.dark .border-red-800 { border-color: #7f1d1d; }
+
+.dark .hover\:bg-gray-200:hover { background-color: #374151; }
+.dark .hover\:bg-red-50:hover { background-color: rgba(127, 29, 29, 0.2); }
+.dark .hover\:bg-gray-700:hover { background-color: #374151; }
