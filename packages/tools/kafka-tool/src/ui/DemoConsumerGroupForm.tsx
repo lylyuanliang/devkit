@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { KafkaTool } from '../index';
-import { KafkaAPI } from '../service/kafka-api';
 import { TopicInfo } from '../types';
 
 interface DemoConsumerGroupFormProps {
   kafkaTool?: KafkaTool;
-  clusterId?: string;
+  topics?: TopicInfo[];
   onClose: () => void;
   onGroupCreated?: () => void;
   isDarkMode?: boolean;
@@ -18,57 +17,24 @@ interface DemoConsumerGroupFormProps {
  */
 const DemoConsumerGroupForm: React.FC<DemoConsumerGroupFormProps> = ({
   kafkaTool,
-  clusterId,
+  topics = [],
   onClose,
   onGroupCreated,
   isDarkMode = false,
 }) => {
-  const [topics, setTopics] = useState<TopicInfo[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [selectedTopic, setSelectedTopic] = useState<string>(topics.length > 0 ? topics[0].name : '');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadTopics();
-  }, [clusterId]);
-
-  const loadTopics = async () => {
-    if (!clusterId) {
-      setError('集群ID未指定');
-      setLoading(false);
-      return;
+    if (topics.length > 0 && !selectedTopic) {
+      setSelectedTopic(topics[0].name);
     }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const topicList = await KafkaAPI.listTopics(clusterId);
-
-      // Filter out system topics
-      const userTopics = topicList.filter((topic) => !topic.name.startsWith('__'));
-      setTopics(userTopics);
-
-      if (userTopics.length > 0) {
-        setSelectedTopic(userTopics[0].name);
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : '加载主题失败';
-      setError(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [topics]);
 
   const handleCreateDemo = async () => {
     if (!selectedTopic) {
       setError('请选择一个主题');
-      return;
-    }
-
-    if (!clusterId) {
-      setError('集群ID未指定');
       return;
     }
 
@@ -205,16 +171,6 @@ const DemoConsumerGroupForm: React.FC<DemoConsumerGroupFormProps> = ({
     lineHeight: '1.5',
   };
 
-  if (loading) {
-    return (
-      <div style={overlayStyle} onClick={onClose}>
-        <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-          <p style={{ color: isDarkMode ? '#f3f4f6' : '#111827' }}>加载主题中...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
@@ -225,57 +181,51 @@ const DemoConsumerGroupForm: React.FC<DemoConsumerGroupFormProps> = ({
 
         {error && <div style={errorStyle}>{error}</div>}
 
-        <div style={infoBoxStyle}>
-          💡 演示组是临时的，不活动5分钟后将自动删除。
-        </div>
-
-        <div style={formGroupStyle}>
-          <label style={labelStyle}>选择主题：</label>
-          {topics.length > 0 ? (
-            <select
-              value={selectedTopic}
-              onChange={(e) => setSelectedTopic(e.target.value)}
-              style={selectStyle}
-              disabled={creating}
-            >
-              {topics.map((topic) => (
-                <option key={topic.name} value={topic.name}>
-                  {topic.name} ({topic.partitions} partition{topic.partitions !== 1 ? 's' : ''})
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div
-              style={{
-                padding: '10px 12px',
-                backgroundColor: isDarkMode ? '#374151' : '#f9fafb',
-                borderRadius: '4px',
-                color: isDarkMode ? '#9ca3af' : '#6b7280',
-                fontSize: '13px',
-              }}
-            >
-              没有可用的主题
-            </div>
-          )}
-        </div>
-
-        <div style={formGroupStyle}>
-          <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
-            演示组ID（自动生成）：
-          </h4>
-          <div
-            style={{
-              padding: '10px 12px',
-              backgroundColor: isDarkMode ? '#374151' : '#f9fafb',
-              borderRadius: '4px',
-              fontFamily: 'monospace',
-              fontSize: '12px',
-              color: isDarkMode ? '#f3f4f6' : '#111827',
-            }}
-          >
-            demo-consumer-{Date.now()}
+        {topics.length === 0 ? (
+          <div style={infoBoxStyle}>
+            ⚠️ 没有可用的主题，无法创建演示消费者组。请先创建一个主题。
           </div>
-        </div>
+        ) : (
+          <>
+            <div style={infoBoxStyle}>
+              💡 演示组是临时的，不活动5分钟后将自动删除。
+            </div>
+
+            <div style={formGroupStyle}>
+              <label style={labelStyle}>选择主题：</label>
+              <select
+                value={selectedTopic}
+                onChange={(e) => setSelectedTopic(e.target.value)}
+                style={selectStyle}
+                disabled={creating}
+              >
+                {topics.map((topic) => (
+                  <option key={topic.name} value={topic.name}>
+                    {topic.name} ({topic.partitions} partition{topic.partitions !== 1 ? 's' : ''})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={formGroupStyle}>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
+                演示组ID（自动生成）：
+              </h4>
+              <div
+                style={{
+                  padding: '10px 12px',
+                  backgroundColor: isDarkMode ? '#374151' : '#f9fafb',
+                  borderRadius: '4px',
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  color: isDarkMode ? '#f3f4f6' : '#111827',
+                }}
+              >
+                demo-consumer-{Date.now()}
+              </div>
+            </div>
+          </>
+        )}
 
         <div style={buttonsStyle}>
           <button

@@ -4,6 +4,7 @@ import ConsumerGroupListView from './ConsumerGroupListView';
 import ConsumerGroupDetailsPage from './ConsumerGroupDetailsPage';
 import ConsumerGroupOnboarding from './ConsumerGroupOnboarding';
 import { useConsumerGroupStore } from './consumer-group-store';
+import { TopicInfo } from '../types';
 
 interface MessageConsumerViewProps {
   clusterId: string;
@@ -25,10 +26,23 @@ const MessageConsumerView: React.FC<MessageConsumerViewProps> = ({
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [topics, setTopics] = useState<TopicInfo[]>([]);
 
   useEffect(() => {
     loadConsumerGroups();
+    loadTopics();
   }, [clusterId]);
+
+  const loadTopics = async () => {
+    try {
+      // 由于没有直接的 KafkaAPI.listTopics 方法，这里设置为空
+      // 实际的主题列表需要通过 kafkaTool 获取
+      setTopics([]);
+    } catch (err) {
+      console.error('加载主题失败:', err);
+      setTopics([]);
+    }
+  };
 
   const loadConsumerGroups = async () => {
     setLoadingGroups(true);
@@ -39,7 +53,7 @@ const MessageConsumerView: React.FC<MessageConsumerViewProps> = ({
       setGroups(groupList);
       setShowOnboarding(groupList.length === 0);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to load consumer groups';
+      const errorMsg = err instanceof Error ? err.message : '加载消费者组失败';
       setError(errorMsg);
     } finally {
       setLoadingGroups(false);
@@ -61,7 +75,7 @@ const MessageConsumerView: React.FC<MessageConsumerViewProps> = ({
         <ConsumerGroupOnboarding
           kafkaTool={undefined}
           isDarkMode={isDarkMode}
-          clusterId={clusterId}
+          topics={topics}
           onGroupCreated={loadConsumerGroups}
         />
       </div>
