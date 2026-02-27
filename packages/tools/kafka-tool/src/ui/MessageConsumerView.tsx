@@ -76,6 +76,7 @@ const MessageConsumerView: React.FC<MessageConsumerViewProps> = ({
           kafkaTool={undefined}
           isDarkMode={isDarkMode}
           topics={topics}
+          clusterId={clusterId}
           onGroupCreated={loadConsumerGroups}
         />
       </div>
