@@ -282,6 +282,18 @@ export class KafkaAPI {
   }
 
   /**
+   * List all topics via Tauri IPC
+   */
+  static async listTopics(clusterId: string): Promise<string[]> {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return await invoke<string[]>('kafka_list_topics', { clusterId });
+    } catch (error) {
+      throw new Error(`Failed to list topics: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Format hex string with spaces
    */
   static formatHex(hex: string, groupSize: number = 16): string {

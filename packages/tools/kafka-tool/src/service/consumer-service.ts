@@ -212,6 +212,11 @@ export class KafkaConsumerService {
       this.lastMetadataFetch.clear();
     }
   }
+
+  /**
+   * Stop the consumer
+   */
+  async stop(): Promise<void> {
     try {
       this.running = false;
       await this.consumer.stop();

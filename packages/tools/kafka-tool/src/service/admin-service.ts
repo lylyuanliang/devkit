@@ -1,8 +1,41 @@
 import { Admin } from 'kafkajs';
 import { TopicInfo } from '../types';
 
+/**
+ * Validation rules for topic configuration
+ */
+const CONFIG_VALIDATION_RULES: Record<string, (value: string) => boolean> = {
+  'retention.ms': (value) => {
+    const num = parseInt(value, 10);
+    return value === '-1' || (num > 0 && !isNaN(num));
+  },
+  'compression.type': (value) => {
+    return ['none', 'gzip', 'snappy', 'lz4', 'zstd'].includes(value);
+  },
+  'cleanup.policy': (value) => {
+    return ['delete', 'compact'].includes(value);
+  },
+  'min.insync.replicas': (value) => {
+    const num = parseInt(value, 10);
+    return num > 0 && !isNaN(num);
+  },
+};
+
 export class KafkaAdminService {
   constructor(private admin: Admin) {}
+
+  /**
+   * Validate topic configuration values
+   */
+  private validateConfig(config: Record<string, string>): void {
+    for (const [key, value] of Object.entries(config)) {
+      if (CONFIG_VALIDATION_RULES[key]) {
+        if (!CONFIG_VALIDATION_RULES[key](value)) {
+          throw new Error(`Invalid value for ${key}: ${value}`);
+        }
+      }
+    }
+  }
 
   /**
    * List all topics in the cluster
@@ -49,20 +82,49 @@ export class KafkaAdminService {
   }
 
   /**
-   * Create a new topic
+   * Create a new topic with optional configuration
+   * @param topicName - Name of the topic
+   * @param partitions - Number of partitions (default: 1)
+   * @param replicationFactor - Replication factor (default: 1)
+   * @param config - Optional topic configuration (retention.ms, compression.type, cleanup.policy, min.insync.replicas)
    */
   async createTopic(
     topicName: string,
     partitions: number = 1,
-    replicationFactor: number = 1
+    replicationFactor: number = 1,
+    config?: Record<string, string>
   ): Promise<void> {
     try {
+      // Validate inputs
+      if (!topicName || topicName.trim().length === 0) {
+        throw new Error('Topic name is required');
+      }
+      if (partitions < 1 || partitions > 100) {
+        throw new Error('Partitions must be between 1 and 100');
+      }
+      if (replicationFactor < 1 || replicationFactor > 10) {
+        throw new Error('Replication factor must be between 1 and 10');
+      }
+
+      // Validate configuration if provided
+      if (config) {
+        this.validateConfig(config);
+      }
+
+      const topicConfig = config
+        ? Object.entries(config).map(([name, value]) => ({
+            name,
+            value: value || '',
+          }))
+        : undefined;
+
       await this.admin.createTopics({
         topics: [
           {
             topic: topicName,
             numPartitions: partitions,
             replicationFactor: replicationFactor,
+            configEntries: topicConfig,
           },
         ],
         validateOnly: false,

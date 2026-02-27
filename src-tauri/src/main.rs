@@ -5,7 +5,7 @@ mod kafka;
 use serde::{Deserialize, Serialize};
 use kafka::{
     connect_cluster, disconnect_cluster, produce_message, consume_messages,
-    list_consumer_groups, get_consumer_group_details, get_consumer_group_lag,
+    list_topics, list_consumer_groups, get_consumer_group_details, get_consumer_group_lag,
     delete_consumer_group, reset_consumer_group_offsets,
     ProduceMessageRequest, ConsumeMessagesRequest, ResetOffsetsRequest,
 };
@@ -77,9 +77,11 @@ fn kafka_consume_messages(
 }
 
 #[tauri::command]
-fn kafka_list_consumer_groups(cluster_id: String) -> Result<Vec<kafka::ConsumerGroup>, String> {
-    list_consumer_groups(cluster_id)
+fn kafka_list_topics(cluster_id: String) -> Result<Vec<String>, String> {
+    list_topics(cluster_id)
 }
+
+#[tauri::command]
 
 #[tauri::command]
 fn kafka_get_consumer_group_details(
@@ -121,6 +123,7 @@ fn main() {
             kafka_disconnect,
             kafka_produce_message,
             kafka_consume_messages,
+            kafka_list_topics,
             kafka_list_consumer_groups,
             kafka_get_consumer_group_details,
             kafka_get_consumer_group_lag,

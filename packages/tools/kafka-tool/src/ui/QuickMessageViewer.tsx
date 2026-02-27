@@ -65,16 +65,12 @@ const QuickMessageViewer: React.FC<QuickMessageViewerProps> = ({
     }
 
     try {
-      // 尝试列出消费者组来验证连接
-      const groups = await KafkaAPI.listConsumerGroups(clusterId);
-      console.log('集群已连接，消费者组数量:', groups.length);
+      // 获取主题列表
+      const topicList = await KafkaAPI.listTopics(clusterId);
+      console.log('获取主题列表:', topicList.length, '个主题');
 
-      // 获取主题列表 - 需要实现的方式可能不同
-      // 目前我们通过尝试消费消息来检查连接
+      setTopics(topicList);
       setLoading(false);
-
-      // 由于没有直接的 listTopics API，我们先禁用 topics 加载
-      // 用户需要手动输入主题名称或从下拉列表选择
       setError(null);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '无法连接到 Kafka 集群';
@@ -321,35 +317,27 @@ const QuickMessageViewer: React.FC<QuickMessageViewerProps> = ({
         <div style={configContentStyle}>
           {/* Topic Selection */}
           <div style={formGroupStyle}>
-            <label style={labelStyle}>主题名称：</label>
-            <input
-              type="text"
-              placeholder="输入主题名称（例如: orders, users）"
-              value={selectedTopic}
-              onChange={(e) => {
-                const topic = e.target.value;
-                setSelectedTopic(topic);
-                if (topic.trim()) {
-                  loadPartitions(topic);
-                } else {
-                  setPartitions([]);
-                  setSelectedPartitions([]);
-                }
-              }}
-              style={{
-                padding: '10px 12px',
-                border: `1px solid ${isDarkMode ? '#374151' : '#d1d5db'}`,
-                borderRadius: '4px',
-                backgroundColor: isDarkMode ? '#374151' : '#ffffff',
-                color: isDarkMode ? '#f3f4f6' : '#111827',
-                fontSize: '13px',
-                width: '100%',
-              }}
-            />
-            {topics.length > 0 && (
-              <div style={{ fontSize: '12px', color: isDarkMode ? '#9ca3af' : '#6b7280', marginTop: '8px' }}>
-                发现 {topics.length} 个主题
+            <label style={labelStyle}>选择主题：</label>
+            {topics.length === 0 ? (
+              <div style={{ color: isDarkMode ? '#9ca3af' : '#6b7280', fontSize: '13px' }}>
+                加载主题中...
               </div>
+            ) : (
+              <select
+                value={selectedTopic}
+                onChange={(e) => {
+                  setSelectedTopic(e.target.value);
+                  loadPartitions(e.target.value);
+                }}
+                style={selectStyle}
+              >
+                <option value="">-- 选择主题 --</option>
+                {topics.map((topic) => (
+                  <option key={topic} value={topic}>
+                    {topic}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
 

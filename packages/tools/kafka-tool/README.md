@@ -11,11 +11,13 @@ A comprehensive Kafka client tool for DevKit that provides cluster management, t
 - Secure password storage with AES-256-GCM encryption
 
 ### Topic Management (P0)
-- List topics in connected cluster
+- List topics in connected cluster with full metadata (partitions, replication factor, leader, ISR)
 - Create new topics with configurable partitions and replication factor
-- Delete topics
+- Create topics with advanced configuration (retention, compression, cleanup policy, min.insync.replicas)
+- Delete topics with confirmation dialog
 - View partition details and leader information
 - Update topic configuration (retention, compression, etc.)
+- Search and filter topics by name
 
 ### Message Production (P0)
 - Send single or batch messages to topics
@@ -30,10 +32,12 @@ A comprehensive Kafka client tool for DevKit that provides cluster management, t
 - Persistent consumption state (last offset)
 
 ### Consumer Group Management (P1)
-- List and view consumer groups
-- Display group members and assigned partitions
-- Reset consumer group offsets (earliest/latest/specific)
-- Delete consumer groups
+- List and view consumer groups with system topic filtering
+- Display group members and assigned partitions with detailed partition assignment information
+- View partition offsets and consumer lag metrics
+- Reset consumer group offsets (earliest/latest/specific offset)
+- Delete consumer groups with proper error handling
+- Real-time loading states for partition assignment data
 
 ### Lag Monitoring (P1)
 - Real-time consumer lag metrics

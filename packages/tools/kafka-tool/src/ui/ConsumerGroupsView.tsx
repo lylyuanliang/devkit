@@ -61,7 +61,7 @@ export const ConsumerGroupsView: React.FC<ConsumerGroupsViewProps> = ({ clusterI
 
       {error && (
         <div style={{ padding: '12px', backgroundColor: '#fee', color: '#c33', borderRadius: '4px', marginBottom: '16px' }}>
-          {error}
+          <strong>错误:</strong> {error}
         </div>
       )}
 

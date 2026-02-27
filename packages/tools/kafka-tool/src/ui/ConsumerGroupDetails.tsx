@@ -11,6 +11,7 @@ const ConsumerGroupDetails: React.FC<ConsumerGroupDetailsProps> = ({ kafkaTool, 
   const [groupInfo, setGroupInfo] = useState<ConsumerGroupInfo | null>(null);
   const [offsets, setOffsets] = useState<ConsumerGroupOffset[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,14 +29,16 @@ const ConsumerGroupDetails: React.FC<ConsumerGroupDetailsProps> = ({ kafkaTool, 
 
       const groupService = kafkaTool.getKafkaService().getConsumerGroupService();
       const info = await groupService.getConsumerGroupInfo(groupId);
-      const groupOffsets = await groupService.getConsumerGroupOffsets(groupId);
-
       setGroupInfo(info);
+
+      setLoadingAssignments(true);
+      const groupOffsets = await groupService.getConsumerGroupOffsets(groupId);
       setOffsets(groupOffsets);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load group details');
     } finally {
       setLoading(false);
+      setLoadingAssignments(false);
     }
   };
 
@@ -68,7 +71,9 @@ const ConsumerGroupDetails: React.FC<ConsumerGroupDetailsProps> = ({ kafkaTool, 
 
           <div className="offsets-table">
             <h4>Partition Offsets</h4>
-            {offsets.length === 0 ? (
+            {loadingAssignments ? (
+              <p className="loading-text">Loading partition assignments...</p>
+            ) : offsets.length === 0 ? (
               <p className="empty-text">No partition offsets</p>
             ) : (
               <table>
@@ -93,6 +98,48 @@ const ConsumerGroupDetails: React.FC<ConsumerGroupDetailsProps> = ({ kafkaTool, 
               </table>
             )}
           </div>
+
+          {groupInfo && groupInfo.members.length > 0 && (
+            <div className="members-table">
+              <h4>Member Partition Assignments</h4>
+              {groupInfo.members.some((m) => m.topicPartitions.length > 0) ? (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Member ID</th>
+                      <th>Client ID</th>
+                      <th>Topic</th>
+                      <th>Partition</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupInfo.members.map((member) =>
+                      member.topicPartitions.length > 0 ? (
+                        member.topicPartitions.map((tp, idx) => (
+                          <tr key={`${member.memberId}-${idx}`}>
+                            <td>{member.memberId}</td>
+                            <td>{member.clientId}</td>
+                            <td>{tp.topic}</td>
+                            <td>{tp.partition}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr key={member.memberId}>
+                          <td>{member.memberId}</td>
+                          <td>{member.clientId}</td>
+                          <td colSpan={2} className="empty-text">
+                            No partitions assigned
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="empty-text">No partition assignments available</p>
+              )}
+            </div>
+          )}
 
           <button onClick={loadGroupDetails} disabled={loading}>
             Refresh

@@ -92,6 +92,7 @@ pub struct ConsumeMessagesResponse {
 
 pub struct KafkaConnection {
     pub producer: FutureProducer<DefaultClientContext>,
+    pub admin: AdminClient<DefaultClientContext>,
     pub brokers: String,
 }
 
@@ -142,7 +143,19 @@ pub fn connect_cluster(cluster_id: String, brokers: Vec<String>) -> Result<(), S
             err_msg
         })?;
 
-    println!("Producer created successfully");
+    // Create admin client for metadata operations
+    let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
+        .set("bootstrap.servers", &brokers_str)
+        .set("client.id", "devkit-admin")
+        .set("socket.timeout.ms", "5000")
+        .create()
+        .map_err(|e| {
+            let err_msg = format!("Failed to create admin client: {}", e);
+            println!("{}", err_msg);
+            err_msg
+        })?;
+
+    println!("Producer and admin client created successfully");
 
     let mut state = KAFKA_STATE
         .lock()
@@ -152,6 +165,7 @@ pub fn connect_cluster(cluster_id: String, brokers: Vec<String>) -> Result<(), S
         cluster_id.clone(),
         KafkaConnection {
             producer,
+            admin,
             brokers: brokers_str,
         },
     );
@@ -309,6 +323,35 @@ pub fn consume_messages(
             has_more: false,
         })
     })
+}
+
+pub fn list_topics(cluster_id: String) -> Result<Vec<String>, String> {
+    let state = KAFKA_STATE
+        .lock()
+        .map_err(|e| format!("Failed to lock state: {}", e))?;
+
+    let connection = state
+        .connections
+        .get(&cluster_id)
+        .ok_or(format!("Cluster '{}' not connected", cluster_id))?;
+
+    // Use the admin client to fetch metadata
+    let admin = &connection.admin;
+    let metadata = admin
+        .fetch_metadata(None, Duration::from_secs(5))
+        .map_err(|e| format!("Failed to fetch metadata: {}", e))?;
+
+    // Extract topic names and filter out system topics (starting with __)
+    let mut topics: Vec<String> = metadata
+        .topics()
+        .iter()
+        .map(|t| t.name().to_string())
+        .filter(|name| !name.starts_with("__"))
+        .collect();
+
+    topics.sort();
+    println!("Found {} topics", topics.len());
+    Ok(topics)
 }
 
 pub fn list_consumer_groups(cluster_id: String) -> Result<Vec<ConsumerGroup>, String> {
