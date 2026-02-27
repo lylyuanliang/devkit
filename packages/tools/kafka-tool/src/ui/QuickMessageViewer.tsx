@@ -318,9 +318,13 @@ const QuickMessageViewer: React.FC<QuickMessageViewerProps> = ({
           {/* Topic Selection */}
           <div style={formGroupStyle}>
             <label style={labelStyle}>选择主题：</label>
-            {topics.length === 0 ? (
+            {loading ? (
               <div style={{ color: isDarkMode ? '#9ca3af' : '#6b7280', fontSize: '13px' }}>
                 加载主题中...
+              </div>
+            ) : topics.length === 0 ? (
+              <div style={{ color: isDarkMode ? '#f59e0b' : '#d97706', fontSize: '13px' }}>
+                ⚠️ 未找到主题。请断开并重新连接 Kafka 集群以刷新主题列表。
               </div>
             ) : (
               <select
