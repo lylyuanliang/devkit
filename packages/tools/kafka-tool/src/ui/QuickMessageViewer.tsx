@@ -321,22 +321,36 @@ const QuickMessageViewer: React.FC<QuickMessageViewerProps> = ({
         <div style={configContentStyle}>
           {/* Topic Selection */}
           <div style={formGroupStyle}>
-            <label style={labelStyle}>选择主题：</label>
-            <select
+            <label style={labelStyle}>主题名称：</label>
+            <input
+              type="text"
+              placeholder="输入主题名称（例如: orders, users）"
               value={selectedTopic}
               onChange={(e) => {
-                setSelectedTopic(e.target.value);
-                loadPartitions(e.target.value);
+                const topic = e.target.value;
+                setSelectedTopic(topic);
+                if (topic.trim()) {
+                  loadPartitions(topic);
+                } else {
+                  setPartitions([]);
+                  setSelectedPartitions([]);
+                }
               }}
-              style={selectStyle}
-            >
-              <option value="">-- 选择主题 --</option>
-              {topics.map((topic) => (
-                <option key={topic} value={topic}>
-                  {topic}
-                </option>
-              ))}
-            </select>
+              style={{
+                padding: '10px 12px',
+                border: `1px solid ${isDarkMode ? '#374151' : '#d1d5db'}`,
+                borderRadius: '4px',
+                backgroundColor: isDarkMode ? '#374151' : '#ffffff',
+                color: isDarkMode ? '#f3f4f6' : '#111827',
+                fontSize: '13px',
+                width: '100%',
+              }}
+            />
+            {topics.length > 0 && (
+              <div style={{ fontSize: '12px', color: isDarkMode ? '#9ca3af' : '#6b7280', marginTop: '8px' }}>
+                发现 {topics.length} 个主题
+              </div>
+            )}
           </div>
 
           {/* Partition Selection */}
