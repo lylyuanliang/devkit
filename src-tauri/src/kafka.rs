@@ -336,14 +336,17 @@ pub fn list_topics(cluster_id: String) -> Result<Vec<String>, String> {
         .ok_or(format!("Cluster '{}' not connected", cluster_id))?;
 
     let brokers = connection.brokers.clone();
+    drop(state); // 释放锁，避免持有锁时的长时间操作
 
-    // Create a temporary consumer to fetch metadata
-    let consumer: StreamConsumer = ClientConfig::new()
-        .set("bootstrap.servers", &brokers)
-        .set("group.id", "devkit-metadata-fetch")
-        .set("session.timeout.ms", "5000")
-        .create()
-        .map_err(|e| format!("Failed to create consumer for metadata: {}", e))?;
+    // 使用 Box 在堆上分配 StreamConsumer，避免栈溢出
+    let consumer: Box<StreamConsumer> = Box::new(
+        ClientConfig::new()
+            .set("bootstrap.servers", &brokers)
+            .set("group.id", "devkit-metadata-fetch")
+            .set("session.timeout.ms", "5000")
+            .create()
+            .map_err(|e| format!("Failed to create consumer for metadata: {}", e))?
+    );
 
     // Fetch metadata with a timeout
     let metadata = consumer
