@@ -82,6 +82,9 @@ fn kafka_list_topics(cluster_id: String) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
+fn kafka_list_consumer_groups(cluster_id: String) -> Result<Vec<kafka::ConsumerGroup>, String> {
+    list_consumer_groups(cluster_id)
+}
 
 #[tauri::command]
 fn kafka_get_consumer_group_details(

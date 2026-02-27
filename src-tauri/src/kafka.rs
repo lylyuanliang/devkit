@@ -335,9 +335,18 @@ pub fn list_topics(cluster_id: String) -> Result<Vec<String>, String> {
         .get(&cluster_id)
         .ok_or(format!("Cluster '{}' not connected", cluster_id))?;
 
-    // Use the admin client to fetch metadata
-    let admin = &connection.admin;
-    let metadata = admin
+    let brokers = connection.brokers.clone();
+
+    // Create a temporary consumer to fetch metadata
+    let consumer: StreamConsumer = ClientConfig::new()
+        .set("bootstrap.servers", &brokers)
+        .set("group.id", "devkit-metadata-fetch")
+        .set("session.timeout.ms", "5000")
+        .create()
+        .map_err(|e| format!("Failed to create consumer for metadata: {}", e))?;
+
+    // Fetch metadata with a timeout
+    let metadata = consumer
         .fetch_metadata(None, Duration::from_secs(5))
         .map_err(|e| format!("Failed to fetch metadata: {}", e))?;
 
@@ -345,8 +354,8 @@ pub fn list_topics(cluster_id: String) -> Result<Vec<String>, String> {
     let mut topics: Vec<String> = metadata
         .topics()
         .iter()
-        .map(|t| t.name().to_string())
-        .filter(|name| !name.starts_with("__"))
+        .map(|t: &rdkafka::metadata::TopicMetadata| t.name().to_string())
+        .filter(|name: &String| !name.starts_with("__"))
         .collect();
 
     topics.sort();
