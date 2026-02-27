@@ -94,6 +94,7 @@ pub struct KafkaConnection {
     pub producer: FutureProducer<DefaultClientContext>,
     pub admin: AdminClient<DefaultClientContext>,
     pub brokers: String,
+    pub topics: Vec<String>, // 缓存主题列表
 }
 
 pub struct KafkaState {
@@ -155,6 +156,48 @@ pub fn connect_cluster(cluster_id: String, brokers: Vec<String>) -> Result<(), S
             err_msg
         })?;
 
+    // Fetch topic list in a separate thread to avoid stack overflow
+    let brokers_for_topics = brokers_str.clone();
+    let topics_handle = std::thread::spawn(move || {
+        match ClientConfig::new()
+            .set("bootstrap.servers", &brokers_for_topics)
+            .set("group.id", "devkit-metadata-fetch")
+            .set("session.timeout.ms", "5000")
+            .create::<StreamConsumer>()
+        {
+            Ok(consumer) => {
+                match consumer.fetch_metadata(None, Duration::from_secs(5)) {
+                    Ok(metadata) => {
+                        let mut topics: Vec<String> = metadata
+                            .topics()
+                            .iter()
+                            .map(|t| t.name().to_string())
+                            .filter(|name| !name.starts_with("__"))
+                            .collect();
+                        topics.sort();
+                        println!("Fetched {} topics during connection", topics.len());
+                        Some(topics)
+                    }
+                    Err(e) => {
+                        println!("Failed to fetch metadata: {}", e);
+                        None
+                    }
+                }
+            }
+            Err(e) => {
+                println!("Failed to create consumer for metadata: {}", e);
+                None
+            }
+        }
+    });
+
+    // Wait for topics to be fetched (with timeout)
+    let topics = topics_handle
+        .join()
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+
     println!("Producer and admin client created successfully");
 
     let mut state = KAFKA_STATE
@@ -167,6 +210,7 @@ pub fn connect_cluster(cluster_id: String, brokers: Vec<String>) -> Result<(), S
             producer,
             admin,
             brokers: brokers_str,
+            topics,
         },
     );
 
@@ -335,34 +379,15 @@ pub fn list_topics(cluster_id: String) -> Result<Vec<String>, String> {
         .get(&cluster_id)
         .ok_or(format!("Cluster '{}' not connected", cluster_id))?;
 
-    let brokers = connection.brokers.clone();
-    drop(state); // 释放锁，避免持有锁时的长时间操作
+    // 直接返回缓存的主题列表，不需要创建新的 consumer
+    let topics = connection.topics.clone();
 
-    // 使用 Box 在堆上分配 StreamConsumer，避免栈溢出
-    let consumer: Box<StreamConsumer> = Box::new(
-        ClientConfig::new()
-            .set("bootstrap.servers", &brokers)
-            .set("group.id", "devkit-metadata-fetch")
-            .set("session.timeout.ms", "5000")
-            .create()
-            .map_err(|e| format!("Failed to create consumer for metadata: {}", e))?
-    );
+    if topics.is_empty() {
+        println!("No topics found (or topics not yet fetched)");
+    } else {
+        println!("Returning {} cached topics", topics.len());
+    }
 
-    // Fetch metadata with a timeout
-    let metadata = consumer
-        .fetch_metadata(None, Duration::from_secs(5))
-        .map_err(|e| format!("Failed to fetch metadata: {}", e))?;
-
-    // Extract topic names and filter out system topics (starting with __)
-    let mut topics: Vec<String> = metadata
-        .topics()
-        .iter()
-        .map(|t| t.name().to_string())
-        .filter(|name| !name.starts_with("__"))
-        .collect();
-
-    topics.sort();
-    println!("Found {} topics", topics.len());
     Ok(topics)
 }
 
