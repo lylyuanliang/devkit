@@ -156,45 +156,9 @@ pub fn connect_cluster(cluster_id: String, brokers: Vec<String>) -> Result<(), S
             err_msg
         })?;
 
-    // Fetch topic list using RUNTIME to have Tokio context
-    let brokers_for_topics = brokers_str.clone();
-    let topics = RUNTIME.block_on(async {
-        tokio::task::spawn_blocking(move || {
-            match ClientConfig::new()
-                .set("bootstrap.servers", &brokers_for_topics)
-                .set("group.id", "devkit-metadata-fetch")
-                .set("session.timeout.ms", "5000")
-                .create::<StreamConsumer>()
-            {
-                Ok(consumer) => {
-                    match consumer.fetch_metadata(None, Duration::from_secs(5)) {
-                        Ok(metadata) => {
-                            let mut topics: Vec<String> = metadata
-                                .topics()
-                                .iter()
-                                .map(|t| t.name().to_string())
-                                .filter(|name| !name.starts_with("__"))
-                                .collect();
-                            topics.sort();
-                            println!("Fetched {} topics during connection", topics.len());
-                            topics
-                        }
-                        Err(e) => {
-                            println!("Failed to fetch metadata: {}", e);
-                            Vec::new()
-                        }
-                    }
-                }
-                Err(e) => {
-                    println!("Failed to create consumer for metadata: {}", e);
-                    Vec::new()
-                }
-            }
-        }).await.unwrap_or_default()
-    });
-
     println!("Producer and admin client created successfully");
 
+    // 先保存连接（空主题列表），让连接立即返回
     let mut state = KAFKA_STATE
         .lock()
         .map_err(|e| format!("Failed to lock state: {}", e))?;
@@ -204,12 +168,64 @@ pub fn connect_cluster(cluster_id: String, brokers: Vec<String>) -> Result<(), S
         KafkaConnection {
             producer,
             admin,
-            brokers: brokers_str,
-            topics,
+            brokers: brokers_str.clone(),
+            topics: Vec::new(), // 先用空列表
         },
     );
+    drop(state); // 释放锁
 
     println!("Successfully connected to cluster: {}", cluster_id);
+
+    // 异步获取主题列表（不阻塞连接）
+    let brokers_for_topics = brokers_str.clone();
+    let cluster_id_for_topics = cluster_id.clone();
+    std::thread::spawn(move || {
+        let topics = RUNTIME.block_on(async {
+            tokio::task::spawn_blocking(move || {
+                match ClientConfig::new()
+                    .set("bootstrap.servers", &brokers_for_topics)
+                    .set("group.id", "devkit-metadata-fetch")
+                    .set("session.timeout.ms", "3000") // 减少超时
+                    .create::<StreamConsumer>()
+                {
+                    Ok(consumer) => {
+                        match consumer.fetch_metadata(None, Duration::from_secs(3)) {
+                            Ok(metadata) => {
+                                let mut topics: Vec<String> = metadata
+                                    .topics()
+                                    .iter()
+                                    .map(|t| t.name().to_string())
+                                    .filter(|name| !name.starts_with("__"))
+                                    .collect();
+                                topics.sort();
+                                println!("Fetched {} topics in background", topics.len());
+                                topics
+                            }
+                            Err(e) => {
+                                println!("Failed to fetch metadata: {}", e);
+                                Vec::new()
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("Failed to create consumer for metadata: {}", e);
+                        Vec::new()
+                    }
+                }
+            }).await.unwrap_or_default()
+        });
+
+        // 更新缓存的主题列表
+        if !topics.is_empty() {
+            if let Ok(mut state) = KAFKA_STATE.lock() {
+                if let Some(conn) = state.connections.get_mut(&cluster_id_for_topics) {
+                    conn.topics = topics;
+                    println!("Updated cached topics for cluster {}", cluster_id_for_topics);
+                }
+            }
+        }
+    });
+
     Ok(())
 }
 
