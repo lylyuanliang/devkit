@@ -3,6 +3,7 @@ import { KafkaTool } from '../index';
 import { TopicInfo } from '../types';
 import UsageGuideModal from './UsageGuideModal';
 import DemoConsumerGroupForm from './DemoConsumerGroupForm';
+import QuickMessageViewer from './QuickMessageViewer';
 
 interface ConsumerGroupOnboardingProps {
   kafkaTool?: KafkaTool;
@@ -24,6 +25,7 @@ const ConsumerGroupOnboarding: React.FC<ConsumerGroupOnboardingProps> = ({
 }) => {
   const [showGuide, setShowGuide] = useState(false);
   const [showDemo, setShowDemo] = useState(false);
+  const [showMessageViewer, setShowMessageViewer] = useState(false);
 
   const containerStyle: React.CSSProperties = {
     display: 'flex',
@@ -211,6 +213,37 @@ const ConsumerGroupOnboarding: React.FC<ConsumerGroupOnboardingProps> = ({
             🔍 查看主题
           </button>
         </div>
+
+        {/* Quick Message Viewer Option */}
+        <div
+          style={optionCardStyle}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.borderColor = isDarkMode ? '#8b5cf6' : '#7c3aed';
+            (e.currentTarget as HTMLElement).style.backgroundColor = isDarkMode ? '#4c1d95' : '#f3e8ff';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.borderColor = isDarkMode ? '#374151' : '#e5e7eb';
+            (e.currentTarget as HTMLElement).style.backgroundColor = isDarkMode ? '#1f2937' : '#ffffff';
+          }}
+        >
+          <div style={optionIconStyle}>📡</div>
+          <h3 style={optionTitleStyle}>快速消息查看</h3>
+          <p style={optionDescStyle}>
+            无需创建消费者组，直接选择主题和分区实时查看消息流。
+          </p>
+          <button
+            onClick={() => setShowMessageViewer(true)}
+            style={{ ...optionButtonStyle, backgroundColor: isDarkMode ? '#8b5cf6' : '#7c3aed' }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.backgroundColor = isDarkMode ? '#7c3aed' : '#6d28d9';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.backgroundColor = isDarkMode ? '#8b5cf6' : '#7c3aed';
+            }}
+          >
+            📡 开始查看
+          </button>
+        </div>
       </div>
 
       <div style={footerStyle}>
@@ -229,6 +262,13 @@ const ConsumerGroupOnboarding: React.FC<ConsumerGroupOnboardingProps> = ({
             onGroupCreated?.();
           }}
           isDarkMode={isDarkMode}
+        />
+      )}
+      {showMessageViewer && (
+        <QuickMessageViewer
+          kafkaTool={kafkaTool}
+          isDarkMode={isDarkMode}
+          onClose={() => setShowMessageViewer(false)}
         />
       )}
     </div>
