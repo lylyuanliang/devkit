@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { KafkaAPI } from '../service/kafka-api';
-import { KafkaMessage } from '../types';
+import { KafkaMessage, TopicInfo } from '../types';
 
 interface QuickMessageViewerProps {
   clusterId?: string;
   isDarkMode?: boolean;
   onClose: () => void;
+  initialTopics?: TopicInfo[]; // 从父组件传入的主题列表
 }
 
 type StartPosition = 'latest' | 'earliest' | 'specific';
@@ -18,8 +19,12 @@ const QuickMessageViewer: React.FC<QuickMessageViewerProps> = ({
   clusterId,
   isDarkMode = false,
   onClose,
+  initialTopics = [],
 }) => {
-  const [topics, setTopics] = useState<string[]>([]);
+  // 直接使用传入的主题列表
+  const [topics, setTopics] = useState<string[]>(
+    initialTopics.map(t => t.name).filter(name => !name.startsWith('__'))
+  );
   const [partitions, setPartitions] = useState<number[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedPartitions, setSelectedPartitions] = useState<number[]>([]);
@@ -27,7 +32,7 @@ const QuickMessageViewer: React.FC<QuickMessageViewerProps> = ({
   const [specificOffset, setSpecificOffset] = useState<string>('0');
   const [messages, setMessages] = useState<KafkaMessage[]>([]);
   const [isPolling, setIsPolling] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // 不需要加载了，直接使用 initialTopics
   const [error, setError] = useState<string | null>(null);
   const [messageCount, setMessageCount] = useState(0);
   const [viewMode, setViewMode] = useState<'config' | 'view'>('config');
@@ -35,9 +40,12 @@ const QuickMessageViewer: React.FC<QuickMessageViewerProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastOffsetRef = useRef<Map<number, number>>(new Map());
 
+  // 当 initialTopics 更新时，更新本地 topics 状态
   useEffect(() => {
-    loadTopics();
-  }, [clusterId]);
+    const topicNames = initialTopics.map(t => t.name).filter(name => !name.startsWith('__'));
+    setTopics(topicNames);
+    console.log('主题列表已更新:', topicNames.length, '个主题');
+  }, [initialTopics]);
 
   useEffect(() => {
     if (selectedTopic && partitions.length > 0 && !selectedPartitions.includes(partitions[0])) {
@@ -56,28 +64,6 @@ const QuickMessageViewer: React.FC<QuickMessageViewerProps> = ({
       stopPolling();
     };
   }, [isPolling, selectedTopic, selectedPartitions, startPosition, specificOffset, clusterId]);
-
-  const loadTopics = async () => {
-    if (!clusterId) {
-      setError('未指定集群');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // 获取主题列表
-      const topicList = await KafkaAPI.listTopics(clusterId);
-      console.log('获取主题列表:', topicList.length, '个主题');
-
-      setTopics(topicList);
-      setLoading(false);
-      setError(null);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : '无法连接到 Kafka 集群';
-      setError(errorMsg);
-      setLoading(false);
-    }
-  };
 
   const loadPartitions = async (topic: string) => {
     if (!clusterId || !topic) {

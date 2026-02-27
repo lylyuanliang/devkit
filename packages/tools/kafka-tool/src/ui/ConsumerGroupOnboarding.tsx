@@ -270,6 +270,7 @@ const ConsumerGroupOnboarding: React.FC<ConsumerGroupOnboardingProps> = ({
         <QuickMessageViewer
           clusterId={clusterId}
           isDarkMode={isDarkMode}
+          initialTopics={topics}
           onClose={() => setShowMessageViewer(false)}
         />
       )}

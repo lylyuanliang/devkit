@@ -35,9 +35,17 @@ const MessageConsumerView: React.FC<MessageConsumerViewProps> = ({
 
   const loadTopics = async () => {
     try {
-      // 由于没有直接的 KafkaAPI.listTopics 方法，这里设置为空
-      // 实际的主题列表需要通过 kafkaTool 获取
-      setTopics([]);
+      // 使用 KafkaAPI 获取主题列表
+      const topicList = await KafkaAPI.listTopics(clusterId);
+      console.log('MessageConsumerView: 获取到', topicList.length, '个主题');
+
+      // 转换为 TopicInfo 格式（只需要 name 字段）
+      const topicInfos: TopicInfo[] = topicList.map(name => ({
+        name,
+        partitions: 0,
+        replicationFactor: 0,
+      }));
+      setTopics(topicInfos);
     } catch (err) {
       console.error('加载主题失败:', err);
       setTopics([]);
