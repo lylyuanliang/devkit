@@ -156,47 +156,42 @@ pub fn connect_cluster(cluster_id: String, brokers: Vec<String>) -> Result<(), S
             err_msg
         })?;
 
-    // Fetch topic list in a separate thread to avoid stack overflow
+    // Fetch topic list using RUNTIME to have Tokio context
     let brokers_for_topics = brokers_str.clone();
-    let topics_handle = std::thread::spawn(move || {
-        match ClientConfig::new()
-            .set("bootstrap.servers", &brokers_for_topics)
-            .set("group.id", "devkit-metadata-fetch")
-            .set("session.timeout.ms", "5000")
-            .create::<StreamConsumer>()
-        {
-            Ok(consumer) => {
-                match consumer.fetch_metadata(None, Duration::from_secs(5)) {
-                    Ok(metadata) => {
-                        let mut topics: Vec<String> = metadata
-                            .topics()
-                            .iter()
-                            .map(|t| t.name().to_string())
-                            .filter(|name| !name.starts_with("__"))
-                            .collect();
-                        topics.sort();
-                        println!("Fetched {} topics during connection", topics.len());
-                        Some(topics)
-                    }
-                    Err(e) => {
-                        println!("Failed to fetch metadata: {}", e);
-                        None
+    let topics = RUNTIME.block_on(async {
+        tokio::task::spawn_blocking(move || {
+            match ClientConfig::new()
+                .set("bootstrap.servers", &brokers_for_topics)
+                .set("group.id", "devkit-metadata-fetch")
+                .set("session.timeout.ms", "5000")
+                .create::<StreamConsumer>()
+            {
+                Ok(consumer) => {
+                    match consumer.fetch_metadata(None, Duration::from_secs(5)) {
+                        Ok(metadata) => {
+                            let mut topics: Vec<String> = metadata
+                                .topics()
+                                .iter()
+                                .map(|t| t.name().to_string())
+                                .filter(|name| !name.starts_with("__"))
+                                .collect();
+                            topics.sort();
+                            println!("Fetched {} topics during connection", topics.len());
+                            topics
+                        }
+                        Err(e) => {
+                            println!("Failed to fetch metadata: {}", e);
+                            Vec::new()
+                        }
                     }
                 }
+                Err(e) => {
+                    println!("Failed to create consumer for metadata: {}", e);
+                    Vec::new()
+                }
             }
-            Err(e) => {
-                println!("Failed to create consumer for metadata: {}", e);
-                None
-            }
-        }
+        }).await.unwrap_or_default()
     });
-
-    // Wait for topics to be fetched (with timeout)
-    let topics = topics_handle
-        .join()
-        .ok()
-        .flatten()
-        .unwrap_or_default();
 
     println!("Producer and admin client created successfully");
 
