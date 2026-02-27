@@ -354,8 +354,8 @@ pub fn list_topics(cluster_id: String) -> Result<Vec<String>, String> {
     let mut topics: Vec<String> = metadata
         .topics()
         .iter()
-        .map(|t: &rdkafka::metadata::TopicMetadata| t.name().to_string())
-        .filter(|name: &String| !name.starts_with("__"))
+        .map(|t| t.name().to_string())
+        .filter(|name| !name.starts_with("__"))
         .collect();
 
     topics.sort();
