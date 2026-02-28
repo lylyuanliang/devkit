@@ -573,9 +573,18 @@ const KafkaToolComponent: React.FC = () => {
       // Connect to real Kafka cluster
       await KafkaAPI.connectCluster(clusterId, cluster.brokers);
 
-      // If connection succeeds without throwing, mark as connected
-      // Real validation will happen when user tries to consume/produce
-      const topics = ['__consumer_offsets', 'devkit-test', 'orders', 'payments', 'users', 'logs'];
+      // Fetch real topics list from Kafka (with retry since topics are fetched async)
+      let topics: string[] = [];
+      try {
+        topics = await KafkaAPI.listTopics(clusterId);
+        // If empty, wait a bit and retry (async background fetch might not be done)
+        if (topics.length === 0) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          topics = await KafkaAPI.listTopics(clusterId);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch topics, will retry later:', err);
+      }
 
       const updatedClusters = clusters.map(c =>
         c.id === clusterId ? {
@@ -870,9 +879,8 @@ const KafkaToolComponent: React.FC = () => {
 
     setRefreshingTopics(true);
     try {
-      // Fetch fresh topics list
-      // For now using placeholder - in real implementation would call admin API
-      const topics = ['__consumer_offsets', 'devkit-test', 'orders', 'payments', 'users', 'logs'];
+      // Fetch real topics list from Kafka
+      const topics = await KafkaAPI.listTopics(connectedCluster.id);
 
       setClusters(clusters.map(c =>
         c.id === connectedCluster.id ? { ...c, topics } : c

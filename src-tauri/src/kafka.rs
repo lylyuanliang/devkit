@@ -195,7 +195,6 @@ pub fn connect_cluster(cluster_id: String, brokers: Vec<String>) -> Result<(), S
                                     .topics()
                                     .iter()
                                     .map(|t| t.name().to_string())
-                                    .filter(|name| !name.starts_with("__"))
                                     .collect();
                                 topics.sort();
                                 println!("Fetched {} topics in background", topics.len());

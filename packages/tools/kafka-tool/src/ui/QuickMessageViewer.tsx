@@ -23,7 +23,7 @@ const QuickMessageViewer: React.FC<QuickMessageViewerProps> = ({
 }) => {
   // 直接使用传入的主题列表
   const [topics, setTopics] = useState<string[]>(
-    initialTopics.map(t => t.name).filter(name => !name.startsWith('__'))
+    initialTopics.map(t => t.name)
   );
   const [partitions, setPartitions] = useState<number[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string>('');
@@ -42,14 +42,14 @@ const QuickMessageViewer: React.FC<QuickMessageViewerProps> = ({
 
   // 当 initialTopics 更新时，更新本地 topics 状态
   useEffect(() => {
-    const topicNames = initialTopics.map(t => t.name).filter(name => !name.startsWith('__'));
+    const topicNames = initialTopics.map(t => t.name);
     setTopics(topicNames);
     console.log('主题列表已更新:', topicNames.length, '个主题');
   }, [initialTopics]);
 
   useEffect(() => {
     if (selectedTopic && partitions.length > 0 && !selectedPartitions.includes(partitions[0])) {
-      setSelectedPartitions([partitions[0]] || []);
+      setSelectedPartitions([partitions[0]]);
     }
   }, [partitions, selectedTopic]);
 
@@ -72,16 +72,16 @@ const QuickMessageViewer: React.FC<QuickMessageViewerProps> = ({
     }
 
     try {
-      // 尝试消费消息来获取分区信息
-      const messages = await KafkaAPI.consumeMessages(clusterId, {
+      // 尝试消费消息来验证主题存在
+      const response = await KafkaAPI.consumeMessages(clusterId, {
         topic,
-        fromOffset: 0,
-        toOffset: 1,
         partition: 0,
+        fromBeginning: true,
+        limit: 1,
       });
 
       // 如果成功，说明至少有一个分区
-      // 这里简化处理，假设有 1-16 个分区
+      // 这里简化处理，假设有 0-3 分区
       const estimatedPartitions = Array.from({ length: 4 }, (_, i) => i);
       setPartitions(estimatedPartitions);
       setSelectedPartitions([0]);
@@ -118,45 +118,29 @@ const QuickMessageViewer: React.FC<QuickMessageViewerProps> = ({
 
       for (const partition of selectedPartitions) {
         try {
-          // 确定起始位置
-          let fromOffset = lastOffsetRef.current.get(partition) ?? 0;
+          const isFirstLoad = lastOffsetRef.current.get(partition) === undefined;
 
-          if (lastOffsetRef.current.get(partition) === undefined) {
-            // 第一次加载，根据选择的起始位置
-            if (startPosition === 'latest') {
-              // 从最新位置开始，先取最后10条
-              fromOffset = Math.max(0, 0);
-              // 实际上我们会从较晚的位置开始
-              const msgs = await KafkaAPI.consumeMessages(clusterId, {
-                topic: selectedTopic,
-                partition,
-                fromOffset: 0,
-                toOffset: 10,
-              });
-
-              if (msgs && msgs.length > 0) {
-                newMessages = newMessages.concat(msgs);
-                lastOffsetRef.current.set(partition, msgs[msgs.length - 1].offset + 1);
-              }
-              continue;
-            } else if (startPosition === 'earliest') {
-              fromOffset = 0;
-            } else {
-              fromOffset = parseInt(specificOffset) || 0;
-            }
-          }
-
-          // 获取消息
-          const msgs = await KafkaAPI.consumeMessages(clusterId, {
+          // 获取消息 - 使用正确的参数
+          const response = await KafkaAPI.consumeMessages(clusterId, {
             topic: selectedTopic,
             partition,
-            fromOffset,
-            toOffset: fromOffset + 50,
+            fromBeginning: isFirstLoad && startPosition === 'earliest',
+            limit: isFirstLoad ? 50 : 100,
           });
 
-          if (msgs && msgs.length > 0) {
-            newMessages = newMessages.concat(msgs);
-            lastOffsetRef.current.set(partition, msgs[msgs.length - 1].offset + 1);
+          // 正确访问 response.messages 数组
+          const msgs = response.messages || [];
+
+          if (msgs.length > 0) {
+            // 过滤掉已经接收过的消息
+            const lastOffset = lastOffsetRef.current.get(partition) ?? -1;
+            const filteredMsgs = msgs.filter(m => m.offset > lastOffset);
+
+            if (filteredMsgs.length > 0) {
+              newMessages = newMessages.concat(filteredMsgs);
+              const maxOffset = Math.max(...filteredMsgs.map(m => m.offset));
+              lastOffsetRef.current.set(partition, maxOffset);
+            }
           }
         } catch (err) {
           console.error(`Error consuming from ${selectedTopic}[${partition}]:`, err);
