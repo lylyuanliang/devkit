@@ -56,10 +56,10 @@
 
 ## 8. Testing & Validation
 
-- [ ] 8.1 Test consumer group list with various group counts
-- [ ] 8.2 Test pagination and filtering
-- [ ] 8.3 Test lag calculation accuracy
-- [ ] 8.4 Test offset reset with different strategies
-- [ ] 8.5 Test consumer group deletion
-- [ ] 8.6 Test error handling for Kafka connection issues
-- [ ] 8.7 Performance test with large groups and many partitions
+- [x] 8.1 Test consumer group list with various group counts
+- [x] 8.2 Test pagination and filtering
+- [x] 8.3 Test lag calculation accuracy
+- [x] 8.4 Test offset reset with different strategies
+- [x] 8.5 Test consumer group deletion
+- [x] 8.6 Test error handling for Kafka connection issues
+- [x] 8.7 Performance test with large groups and many partitions
